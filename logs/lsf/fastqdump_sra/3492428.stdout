@@ -1,0 +1,42 @@
+Sender: LSF System <lsfadmin@lt19>
+Subject: Job 3492428: <fastqdump_sra> in cluster <lila> Exited
+
+Job <fastqdump_sra> was submitted from host <lt02> by user <fanslerm> in cluster <lila> at Sun May 27 17:55:25 2018.
+Job was executed on host(s) <lt19>, in queue <cpuqueue>, as user <fanslerm> in cluster <lila> at Sun May 27 17:55:25 2018.
+</home/fanslerm> was used as the home directory.
+</home/fanslerm/projects/mca> was used as the working directory.
+Started at Sun May 27 17:55:25 2018.
+Terminated at Sun May 27 21:55:26 2018.
+Results reported at Sun May 27 21:55:26 2018.
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+/lila/home/fanslerm/projects/mca/.snakemake/tmp._lmrtf5o/snakejob.fastqdump_sra.2.sh
+------------------------------------------------------------
+
+TERM_RUNLIMIT: job killed after reaching LSF run time limit.
+Exited with exit code 140.
+
+Resource usage summary:
+
+    CPU time :                                   14178.16 sec.
+    Max Memory :                                 -
+    Average Memory :                             -
+    Total Requested Memory :                     8.00 GB
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              5
+    Max Threads :                                8
+    Run time :                                   14401 sec.
+    Turnaround time :                            14401 sec.
+
+The output (if any) follows:
+
+
+
+PS:
+
+Read file <logs/lsf/fastqdump_sra/3492428.err> for stderr output of this job.
+

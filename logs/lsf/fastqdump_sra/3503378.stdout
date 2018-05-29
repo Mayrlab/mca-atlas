@@ -1,0 +1,64 @@
+Sender: LSF System <lsfadmin@lp03>
+Subject: Job 3503378: <fastqdump_sra> in cluster <lila> Done
+
+Job <fastqdump_sra> was submitted from host <lt02> by user <fanslerm> in cluster <lila> at Mon May 28 00:37:27 2018.
+Job was executed on host(s) <8*lp03>, in queue <cpuqueue>, as user <fanslerm> in cluster <lila> at Mon May 28 00:37:28 2018.
+</home/fanslerm> was used as the home directory.
+</home/fanslerm/projects/mca> was used as the working directory.
+Started at Mon May 28 00:37:28 2018.
+Terminated at Mon May 28 00:58:23 2018.
+Results reported at Mon May 28 00:58:23 2018.
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+/lila/home/fanslerm/projects/mca/.snakemake/tmp.7_pvnlzx/snakejob.fastqdump_sra.19.sh
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   9651.91 sec.
+    Max Memory :                                 -
+    Average Memory :                             -
+    Total Requested Memory :                     64.00 GB
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              13
+    Max Threads :                                23
+    Run time :                                   1256 sec.
+    Turnaround time :                            1256 sec.
+
+The output (if any) follows:
+
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556007 spots for data/sra/SRR6954508.sra
+Written 10556007 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Read 10556001 spots for data/sra/SRR6954508.sra
+Written 10556001 spots for data/sra/SRR6954508.sra
+Loading annotation data...
+Loaded annotations for 266277 cells from 73 libraries and 42 tissues, comprising 818 clusters.
+This included:
+	146378 adult cells from 47 libraries and 23 tissues, comprising 499 clusters;
+	28828 neonatal cells from 11 libraries and 6 tissues, comprising 124 clusters.
+	54272 embryonic cells from 12 libraries and 10 tissues, comprising 183 clusters.
+	36799 stem cells from 3 libraries and 3 tissues, comprising 12 clusters.
+
+
+PS:
+
+Read file <logs/lsf/fastqdump_sra/3503378.err> for stderr output of this job.
+

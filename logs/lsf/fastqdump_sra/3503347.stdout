@@ -1,0 +1,62 @@
+Sender: LSF System <lsfadmin@lp21>
+Subject: Job 3503347: <fastqdump_sra> in cluster <lila> Exited
+
+Job <fastqdump_sra> was submitted from host <lt02> by user <fanslerm> in cluster <lila> at Sun May 27 23:23:53 2018.
+Job was executed on host(s) <8*lp21>, in queue <cpuqueue>, as user <fanslerm> in cluster <lila> at Sun May 27 23:23:53 2018.
+</home/fanslerm> was used as the home directory.
+</home/fanslerm/projects/mca> was used as the working directory.
+Started at Sun May 27 23:23:53 2018.
+Terminated at Sun May 27 23:24:05 2018.
+Results reported at Sun May 27 23:24:05 2018.
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+/lila/home/fanslerm/projects/mca/.snakemake/tmp.t9r7y0iq/snakejob.fastqdump_sra.2.sh
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   2.92 sec.
+    Max Memory :                                 -
+    Average Memory :                             -
+    Total Requested Memory :                     64.00 GB
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              5
+    Max Threads :                                7
+    Run time :                                   12 sec.
+    Turnaround time :                            12 sec.
+
+The output (if any) follows:
+
+usage: parallel-fastq-dump [-h] [-s SRA_ID] [-t THREADS] [-O OUTDIR] [--tmpdir TMPDIR] [-V]
+
+parallel fastq-dump wrapper, extra args will be passed through
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SRA_ID, --sra-id SRA_ID
+                        SRA id
+  -t THREADS, --threads THREADS
+                        number of threads
+  -O OUTDIR, --outdir OUTDIR
+                        output directory
+  --tmpdir TMPDIR       temporary directory
+  -V, --version         shows version
+Loading annotation data...
+Loaded annotations for 266277 cells from 73 libraries and 42 tissues, comprising 818 clusters.
+This included:
+	146378 adult cells from 47 libraries and 23 tissues, comprising 499 clusters;
+	28828 neonatal cells from 11 libraries and 6 tissues, comprising 124 clusters.
+	54272 embryonic cells from 12 libraries and 10 tissues, comprising 183 clusters.
+	36799 stem cells from 3 libraries and 3 tissues, comprising 12 clusters.
+
+
+PS:
+
+Read file <logs/lsf/fastqdump_sra/3503347.err> for stderr output of this job.
+

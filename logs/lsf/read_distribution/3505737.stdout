@@ -1,0 +1,48 @@
+Sender: LSF System <lsfadmin@ls04>
+Subject: Job 3505737: <read_distribution> in cluster <lila> Done
+
+Job <read_distribution> was submitted from host <lt02> by user <fanslerm> in cluster <lila> at Tue May 29 01:37:23 2018.
+Job was executed on host(s) <ls04>, in queue <cpuqueue>, as user <fanslerm> in cluster <lila> at Tue May 29 01:37:24 2018.
+</home/fanslerm> was used as the home directory.
+</home/fanslerm/projects/mca> was used as the working directory.
+Started at Tue May 29 01:37:24 2018.
+Terminated at Tue May 29 01:51:07 2018.
+Results reported at Tue May 29 01:51:07 2018.
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+/lila/home/fanslerm/projects/mca/.snakemake/tmp.0df1pr93/snakejob.read_distribution.7.sh
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   814.59 sec.
+    Max Memory :                                 1 GB
+    Average Memory :                             0.97 GB
+    Total Requested Memory :                     8.00 GB
+    Delta Memory :                               7.00 GB
+    Max Swap :                                   -
+    Max Processes :                              9
+    Max Threads :                                82
+    Run time :                                   825 sec.
+    Turnaround time :                            824 sec.
+
+The output (if any) follows:
+
+Loading annotation data...
+Loaded annotations for 266277 cells from 73 libraries and 42 tissues, comprising 818 clusters.
+This included:
+	146378 adult cells from 47 libraries and 23 tissues, comprising 499 clusters;
+	28828 neonatal cells from 11 libraries and 6 tissues, comprising 124 clusters.
+	54272 embryonic cells from 12 libraries and 10 tissues, comprising 183 clusters.
+	36799 stem cells from 3 libraries and 3 tissues, comprising 12 clusters.
+
+
+PS:
+
+Read file <logs/lsf/read_distribution/3505737.err> for stderr output of this job.
+

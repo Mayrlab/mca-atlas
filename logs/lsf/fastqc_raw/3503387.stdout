@@ -1,0 +1,49 @@
+Sender: LSF System <lsfadmin@ls16>
+Subject: Job 3503387: <fastqc_raw> in cluster <lila> Done
+
+Job <fastqc_raw> was submitted from host <lt02> by user <fanslerm> in cluster <lila> at Mon May 28 00:49:28 2018.
+Job was executed on host(s) <ls16>, in queue <cpuqueue>, as user <fanslerm> in cluster <lila> at Mon May 28 00:49:29 2018.
+</home/fanslerm> was used as the home directory.
+</home/fanslerm/projects/mca> was used as the working directory.
+Started at Mon May 28 00:49:29 2018.
+Terminated at Mon May 28 00:56:50 2018.
+Results reported at Mon May 28 00:56:50 2018.
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+/lila/home/fanslerm/projects/mca/.snakemake/tmp.7_pvnlzx/snakejob.fastqc_raw.2.sh
+------------------------------------------------------------
+
+Successfully completed.
+
+Resource usage summary:
+
+    CPU time :                                   449.04 sec.
+    Max Memory :                                 -
+    Average Memory :                             -
+    Total Requested Memory :                     8.00 GB
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              5
+    Max Threads :                                36
+    Run time :                                   443 sec.
+    Turnaround time :                            442 sec.
+
+The output (if any) follows:
+
+Analysis complete for SRR6954504_1.fastq.gz
+Loading annotation data...
+Loaded annotations for 266277 cells from 73 libraries and 42 tissues, comprising 818 clusters.
+This included:
+	146378 adult cells from 47 libraries and 23 tissues, comprising 499 clusters;
+	28828 neonatal cells from 11 libraries and 6 tissues, comprising 124 clusters.
+	54272 embryonic cells from 12 libraries and 10 tissues, comprising 183 clusters.
+	36799 stem cells from 3 libraries and 3 tissues, comprising 12 clusters.
+
+
+PS:
+
+Read file <logs/lsf/fastqc_raw/3503387.err> for stderr output of this job.
+
