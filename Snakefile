@@ -109,14 +109,15 @@ rule pear_merge:
         r0 = "data/fastq/discarded/{srr}.discarded.fastq.gz"
     params:
         tmp_dir = config["tmp_dir"] + "/pear",
-        total_mem = 32
+        total_mem = 32,
+        min_length = 54 + 21
     threads: 8
     log:
         "logs/pear/{srr}.log"
     shell:
         """
         mkdir -p {params.tmp_dir}
-        pear -j {threads} -p 0.0001 -f {input.r1} -r {input.r2} -o {params.tmp_dir}/{wildcards.srr} 2> {log}
+        pear -j {threads} -n {params.min_length} -p 0.0001 -f {input.r1} -r {input.r2} -o {params.tmp_dir}/{wildcards.srr} 2> {log}
         pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.assembled.fastq > {output.r12}
         pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.unassembled.forward.fastq > {output.r1}
         pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.unassembled.reverse.fastq > {output.r2}
@@ -124,26 +125,49 @@ rule pear_merge:
         rm {params.tmp_dir}/{wildcards.srr}.*.fastq
         """
 
-rule umitools_whitelist:
+# rule umitools_whitelist:
+#     input:
+#         r12 = "data/fastq/assembled/{srr}.assembled.fastq.gz",
+#         r1 = "data/fastq/unassembled/{srr}.unassembled_1.fastq.gz",
+#         r2 = "data/fastq/unassembled/{srr}.unassembled_2.fastq.gz"
+#     output:
+#         r12 = "data/barcodes/{srr}.assembled.whitelist.txt",
+#         r1 = "data/barcodes/{srr}.unassembled.whitelist.txt"
+#     threads: 4
+#     params:
+#         bc_regex = config["barcodeRegex"]
+#     log:
+#         r12 = "logs/umi_tools/{ssr}.assembled.whitelist.log",
+#         r1 = "logs/umi_tools/{ssr}.unassembled.whitelist.log"
+#     shell:
+#         """
+#         umi_tools whitelist -I {input.r12} -S {output.r12} -L {log.r12} --extract-method='regex' --bc-pattern='{params.bc_regex}'
+#         umi_tools whitelist -I {input.r1} -S {output.r1} -L {log.r1} --extract-method='regex' --bc-pattern='{params.bc_regex}'
+#         """
+
+rule umitools_whitelist_raw:
     input:
-        r12 = "data/fastq/assembled/{srr}.assembled.fastq.gz",
-        r1 = "data/fastq/unassembled/{srr}.unassembled_1.fastq.gz",
-        r2 = "data/fastq/unassembled/{srr}.unassembled_2.fastq.gz"
+        "data/fastq/raw/{srr}_1.fastq.gz"
     output:
-        r12 = "data/barcodes/{srr}.assembled.whitelist.txt",
-        r1 = "data/barcodes/{srr}.unassembled.whitelist.txt"
-    threads: 4
+        raw = "data/barcodes/{srr}.raw.whitelist.c20K.txt",
+        filtered = "data/barcodes/{srr}.raw.whitelist.umi500.txt"
     params:
-        bc_regex = config["barcodeRegex"]
+        #bc_regex = config["barcodeRegex"],
+        cell_num = 20000,
+        prefix = lambda wcs: "qc/barcodes/%s.raw.20K" % wcs.srr
     log:
-        r12 = "logs/umi_tools/{ssr}.assembled.whitelist.log",
-        r1 = "logs/umi_tools/{ssr}.unassembled.whitelist.log"
+        "logs/umi_tools/{srr}.raw.whitelist.c20K.log"
+    resources:
+        walltime = 24
     shell:
         """
-        umi_tools whitelist -I {input.r12} -S {output.r12} -L {log.r12} --extract-method='regex' --bc-pattern='{params.bc_regex}'
-        umi_tools whitelist -I {input.r1} -S {output.r1} -L {log.r1} --extract-method='regex' --bc-pattern='{params.bc_regex}'
+        umi_tools whitelist --set-cell-number={params.cell_num} --method=umis \\
+        --extract-method=regex --plot-prefix={params.prefix} \\
+        --bc-pattern='(?P<cell_1>.{{6}})(?P<discard_1>CGACTCACTACAGGG){{s<=1}}(?P<cell_2>.{{6}})(?P<discard_2>TCGGTGACACGATCG){{s<=1}}(?P<cell_3>.{{6}})(?P<umi_1>.{{6}})(T{{12}}){{s<=2}}.*' \\
+        --stdin={input} --stdout={output.raw} --log={log}
+        awk '$3 >= 500 {{ print $0 }}' {output.raw} > {output.filtered}
         """
-
+        
 #rule cutadapt:
 #    input:
 #        "data/fastq/raw/{srr}_{read}.fastq.gz"
