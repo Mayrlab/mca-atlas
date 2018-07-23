@@ -368,3 +368,57 @@ rule merge_cov_adult:
         """
         scripts/merge_genomecov.py -p {threads} -e {wildcards.epsilon} {input} {output}
         """
+
+rule cov_to_bed:
+    input:
+        neg = "data/coverage/adult.assembled.negative.{epsilon}.txt.gz",
+        pos = "data/coverage/adult.assembled.positive.{epsilon}.txt.gz"
+    output:
+        gz = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz",
+        tbi = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz.tbi"
+    params:
+        raw = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+"
+    shell:
+        """
+        zcat {input.neg} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > {params.raw}
+        zcat {input.pos} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":-\", $3, \"-\"}}' >> {params.raw}
+        sort -k1,1 -k2,2n {params.raw} | bgzip > {output.gz}
+        tabix -0 -p bed {output.gz}
+        rm -f {params.raw}
+        """
+
+rule cleanUpdTSeq_adult:
+    input:
+        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz"
+    output:
+        res = "qc/cleavage-sites/adult.classified.e{epsilon}.t{threshold}.tsv.gz",
+        hist = "qc/cleavage-sites/adult.posteriors.e{epsilon}.t{threshold}.png"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+"
+    resources:
+        walltime=24,
+        mem = 24
+    shell:
+        """
+        scripts/classify_cleavage_sites.R {input} {output.res} {output.hist}
+        """
+
+rule intersect_polyASite:
+    input:
+        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz"
+    output:
+        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.pA{score}.bed.gz"
+    params:
+        pasFile=config["polyASiteBED"],
+        window=12
+    shell:
+        """
+        scripts/compare_polyASite.R {params.pasFile} {wildcards.score} {params.window} {input} {output}
+        """
+
+##rule export_cleavage_sites:
+    

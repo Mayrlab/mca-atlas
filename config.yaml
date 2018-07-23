@@ -13,6 +13,9 @@ metadataFile:
 gencodeBED:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.bed"
 
+polyASiteBED:
+  "/data/mayrc/db/mm10/polyASite.clusters.mm10.bed.gz"
+  
 ascpKeyFile:
   "~/.aspera/connect/etc/asperaweb_id_dsa.openssh"
 
