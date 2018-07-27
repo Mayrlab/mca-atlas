@@ -1,0 +1,37 @@
+[Wed Jun 27 18:32:23 2018] Building DAG of jobs...
+[Wed Jun 27 18:32:23 2018] Using shell: /usr/bin/bash
+[Wed Jun 27 18:32:23 2018] Provided cores: 1
+[Wed Jun 27 18:32:23 2018] Rules claiming more threads will be scaled down.
+[Wed Jun 27 18:32:23 2018] Job counts:
+[Wed Jun 27 18:32:23 2018] 	count	jobs
+[Wed Jun 27 18:32:23 2018] 	1	fastqc_clean
+[Wed Jun 27 18:32:23 2018] 	1
+
+[Wed Jun 27 18:32:23 2018] rule fastqc_clean:
+[Wed Jun 27 18:32:23 2018]     input: data/fastq/trimmed/SRR6954503.unassembled_2.clean.fastq.gz
+[Wed Jun 27 18:32:23 2018]     output: qc/trimmed/SRR6954503.unassembled_2.clean_fastqc.html, qc/trimmed/SRR6954503.unassembled_2.clean_fastqc.zip
+[Wed Jun 27 18:32:23 2018]     jobid: 0
+[Wed Jun 27 18:32:23 2018]     wildcards: srr=SRR6954503, readtype=unassembled_2
+
+Started analysis of SRR6954503.unassembled_2.clean.fastq.gz
+Approx 5% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 10% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 15% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 20% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 25% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 30% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 35% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 40% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 45% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 50% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 55% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 60% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 65% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 70% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 75% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 80% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 85% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 90% complete for SRR6954503.unassembled_2.clean.fastq.gz
+Approx 95% complete for SRR6954503.unassembled_2.clean.fastq.gz
+[Wed Jun 27 18:41:52 2018] Finished job 0.
+[Wed Jun 27 18:41:52 2018] 1 of 1 steps (100%) done

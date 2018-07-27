@@ -420,5 +420,68 @@ rule intersect_polyASite:
         scripts/compare_polyASite.R {params.pasFile} {wildcards.score} {params.window} {input} {output}
         """
 
-##rule export_cleavage_sites:
-    
+rule export_cleavage_sites:
+    input:
+        full = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz",
+        clean = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        pas = config["polyASiteBED"],
+        annot = config["gencodeGFF"]
+    output:
+        "data/bed/cleavage-sites/adult.validated.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "data/bed/cleavage-sites/adult.supported.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "data/bed/cleavage-sites/adult.likely.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "data/bed/cleavage-sites/adult.unlikely.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "data/bed/cleavage-sites/adult.utr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "data/bed/cleavage-sites/adult.extutr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        "qc/cleavage-sites/adult.annotations.e{epsilon}.t{threshold}.f{likelihood}.png",
+        "qc/cleavage-sites/adult.site_scores.e{epsilon}.t{threshold}.f{likelihood}.png"
+    threads: 1
+    params:
+        prefix = "adult",
+        suffix = lambda wcs: "e%s.t%s.f%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood),
+        extUTR3 = 5000,
+        extUTR5 = 1000
+    shell:
+        """
+        scripts/export_cleavage_sites.R {threads} {input.full} {input.clean} {input.annot} {input.pas} {params.extUTR5} {params.extUTR3} {params.prefix} {params.suffix}
+        """
+
+rule augment_transcriptome:
+    input:
+        utr3 = "data/bed/cleavage-sites/adult.utr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        ext3 = "data/bed/cleavage-sites/adult.extutr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
+        annot = config["gencodeGFF"]
+    output:
+        "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
+        "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gtf",
+        "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
+        "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gtf"
+    threads: 24
+    resources:
+        mem = 8,
+        walltime = 24
+    params:
+        prefix = "adult",
+        suffix = lambda wcs: "e%s.t%s.f%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood),
+        extUTR3 = 5000
+    shell:
+        """
+        scripts/augment_transcriptome.R {threads} {input.utr3} {input.ext3} {input.annot} {params.extUTR3} {params.prefix} {params.suffix}
+        """
+
+rule export_utrome:
+    input:
+        utr3 = "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
+        ext3 = "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
+        annot = config["gencodeGFF"]
+    output:
+        gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
+        fa = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
+    threads: 4
+    params:
+        prefix = "adult",
+        suffix = lambda wcs: "e%s.t%s.f%s.w%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood, wcs.width)
+    shell:
+        """
+        scripts/export_utrome.R {threads} {input.utr3} {input.ext3} {input.annot} {wildcards.width} {params.prefix} {params.suffix}
+        """

@@ -1,0 +1,19 @@
+[Thu Jun 28 14:41:50 2018] Building DAG of jobs...
+[Thu Jun 28 14:41:51 2018] Using shell: /usr/bin/bash
+[Thu Jun 28 14:41:51 2018] Provided cores: 24
+[Thu Jun 28 14:41:51 2018] Rules claiming more threads will be scaled down.
+[Thu Jun 28 14:41:51 2018] Job counts:
+[Thu Jun 28 14:41:51 2018] 	count	jobs
+[Thu Jun 28 14:41:51 2018] 	1	pear_merge
+[Thu Jun 28 14:41:51 2018] 	1
+
+[Thu Jun 28 14:41:51 2018] rule pear_merge:
+[Thu Jun 28 14:41:51 2018]     input: data/fastq/raw/SRR6954575_1.fastq.gz, data/fastq/raw/SRR6954575_2.fastq.gz
+[Thu Jun 28 14:41:51 2018]     output: data/fastq/assembled/SRR6954575.assembled.fastq.gz, data/fastq/unassembled/SRR6954575.unassembled_1.fastq.gz, data/fastq/unassembled/SRR6954575.unassembled_2.fastq.gz, data/fastq/discarded/SRR6954575.discarded.fastq.gz
+[Thu Jun 28 14:41:51 2018]     log: logs/pear/SRR6954575.log
+[Thu Jun 28 14:41:51 2018]     jobid: 0
+[Thu Jun 28 14:41:51 2018]     wildcards: srr=SRR6954575
+[Thu Jun 28 14:41:51 2018]     threads: 24
+
+[Thu Jun 28 16:11:38 2018] Finished job 0.
+[Thu Jun 28 16:11:38 2018] 1 of 1 steps (100%) done

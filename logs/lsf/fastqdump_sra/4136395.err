@@ -1,0 +1,50 @@
+[Fri Jun 29 15:19:08 2018] Building DAG of jobs...
+[Fri Jun 29 15:19:08 2018] Using shell: /usr/bin/bash
+[Fri Jun 29 15:19:08 2018] Provided cores: 8
+[Fri Jun 29 15:19:08 2018] Rules claiming more threads will be scaled down.
+[Fri Jun 29 15:19:08 2018] Job counts:
+[Fri Jun 29 15:19:08 2018] 	count	jobs
+[Fri Jun 29 15:19:08 2018] 	1	fastqdump_sra
+[Fri Jun 29 15:19:08 2018] 	1
+
+[Fri Jun 29 15:19:08 2018] rule fastqdump_sra:
+[Fri Jun 29 15:19:08 2018]     input: data/sra/SRR6954577.sra
+[Fri Jun 29 15:19:08 2018]     output: data/fastq/raw/SRR6954577_1.fastq.gz, data/fastq/raw/SRR6954577_2.fastq.gz
+[Fri Jun 29 15:19:08 2018]     jobid: 0
+[Fri Jun 29 15:19:08 2018]     wildcards: srr=SRR6954577
+[Fri Jun 29 15:19:08 2018]     threads: 8
+
+[Fri Jun 29 15:22:39 2018] Terminating processes on user request, this might take some time.
+SRR ids: ['data/sra/SRR6954577.sra']
+extra args: ['--split-files', '--gzip']
+tempdir: /scratch/fanslerm/pfd_7jiuek9z
+data/sra/SRR6954577.sra spots: 180674565
+blocks: [[1, 22584320], [22584321, 45168640], [45168641, 67752960], [67752961, 90337280], [90337281, 112921600], [112921601, 135505920], [135505921, 158090240], [158090241, 180674565]]
+2018-06-29T19:22:39 fastq-dump.2.8.2 err: process canceled while executing process - failed data/sra/SRR6954577.sra
+2018-06-29T19:22:39 fastq-dump.2.8.2 err: process canceled while executing process - failed data/sra/SRR6954577.sra
+Traceback (most recent call last):
+  File "/home/fanslerm/software/miniconda3/bin/parallel-fastq-dump", line 4, in <module>
+    __import__('pkg_resources').run_script('parallel-fastq-dump==0.6.3', 'parallel-fastq-dump')
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/site-packages/pkg_resources/__init__.py", line 658, in run_script
+    self.require(requires)[0].run_script(script_name, ns)
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/site-packages/pkg_resources/__init__.py", line 1445, in run_script
+    exec(script_code, namespace, namespace)
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/site-packages/parallel_fastq_dump-0.6.3-py3.6.egg/EGG-INFO/scripts/parallel-fastq-dump", line 103, in <module>
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/site-packages/parallel_fastq_dump-0.6.3-py3.6.egg/EGG-INFO/scripts/parallel-fastq-dump", line 96, in main
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/site-packages/parallel_fastq_dump-0.6.3-py3.6.egg/EGG-INFO/scripts/parallel-fastq-dump", line 29, in pfd
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/subprocess.py", line 1436, in wait
+    (pid, sts) = self._try_wait(0)
+  File "/home/fanslerm/software/miniconda3/lib/python3.6/subprocess.py", line 1383, in _try_wait
+    (pid, sts) = os.waitpid(self.pid, wait_flags)
+KeyboardInterrupt
+[Fri Jun 29 15:22:39 2018]     Error in rule fastqdump_sra:
+[Fri Jun 29 15:22:39 2018]         jobid: 0
+[Fri Jun 29 15:22:39 2018]         output: data/fastq/raw/SRR6954577_1.fastq.gz, data/fastq/raw/SRR6954577_2.fastq.gz
+
+[Fri Jun 29 15:22:39 2018] RuleException:
+[Fri Jun 29 15:22:39 2018] CalledProcessError in line 92 of /lila/home/fanslerm/projects/mca/Snakefile:
+[Fri Jun 29 15:22:39 2018] Command ' set -euo pipefail;  
+[Fri Jun 29 15:22:39 2018]         parallel-fastq-dump -s data/sra/SRR6954577.sra -t 8 -O data/fastq/raw --tmpdir /scratch/fanslerm --split-files --gzip ' returned non-zero exit status 1.
+[Fri Jun 29 15:22:39 2018]   File "/lila/home/fanslerm/projects/mca/Snakefile", line 92, in __rule_fastqdump_sra
+[Fri Jun 29 15:22:39 2018]   File "/home/fanslerm/software/miniconda3/lib/python3.6/concurrent/futures/thread.py", line 55, in run
+touch: cannot touch '/lila/home/fanslerm/projects/mca/.snakemake/tmp.9u3wobh1/410.jobfailed': No such file or directory

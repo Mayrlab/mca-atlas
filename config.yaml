@@ -10,6 +10,9 @@ sampleBatchFile:
 metadataFile:
   "data/SRP126776.run_table.tsv"
 
+gencodeGFF:
+  "/data/mayrc/db/mm10/gencode.vM17.annotation.gff3.gz"
+
 gencodeBED:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.bed"
 

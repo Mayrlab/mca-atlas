@@ -1,0 +1,18 @@
+[Tue Jul  3 17:55:45 2018] Building DAG of jobs...
+[Tue Jul  3 17:55:45 2018] Using shell: /usr/bin/bash
+[Tue Jul  3 17:55:45 2018] Provided cores: 1
+[Tue Jul  3 17:55:45 2018] Rules claiming more threads will be scaled down.
+[Tue Jul  3 17:55:45 2018] Job counts:
+[Tue Jul  3 17:55:45 2018] 	count	jobs
+[Tue Jul  3 17:55:45 2018] 	1	read_dist_plot
+[Tue Jul  3 17:55:45 2018] 	1
+
+[Tue Jul  3 17:55:45 2018] rule read_dist_plot:
+[Tue Jul  3 17:55:45 2018]     input: qc/aligned/SRR6954580.unassembled.read_distribution.txt
+[Tue Jul  3 17:55:45 2018]     output: output/read_distribution/Thymus.SRR6954580.unassembled.png
+[Tue Jul  3 17:55:45 2018]     jobid: 0
+[Tue Jul  3 17:55:45 2018]     wildcards: tissue=Thymus, srr=SRR6954580, readtype=unassembled
+
+Saving 7 x 7 in image
+[Tue Jul  3 17:55:47 2018] Finished job 0.
+[Tue Jul  3 17:55:47 2018] 1 of 1 steps (100%) done

@@ -1,0 +1,18 @@
+[Thu Jun 28 20:57:20 2018] Building DAG of jobs...
+[Thu Jun 28 20:57:20 2018] Using shell: /usr/bin/bash
+[Thu Jun 28 20:57:20 2018] Provided cores: 1
+[Thu Jun 28 20:57:20 2018] Rules claiming more threads will be scaled down.
+[Thu Jun 28 20:57:20 2018] Job counts:
+[Thu Jun 28 20:57:20 2018] 	count	jobs
+[Thu Jun 28 20:57:20 2018] 	1	read_dist_plot
+[Thu Jun 28 20:57:20 2018] 	1
+
+[Thu Jun 28 20:57:20 2018] rule read_dist_plot:
+[Thu Jun 28 20:57:20 2018]     input: qc/aligned/SRR6954568.unassembled.read_distribution.txt
+[Thu Jun 28 20:57:20 2018]     output: output/read_distribution/PeripheralBlood.SRR6954568.unassembled.png
+[Thu Jun 28 20:57:20 2018]     jobid: 0
+[Thu Jun 28 20:57:20 2018]     wildcards: tissue=PeripheralBlood, srr=SRR6954568, readtype=unassembled
+
+Saving 7 x 7 in image
+[Thu Jun 28 20:57:21 2018] Finished job 0.
+[Thu Jun 28 20:57:21 2018] 1 of 1 steps (100%) done

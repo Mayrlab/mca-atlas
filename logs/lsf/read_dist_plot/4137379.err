@@ -1,0 +1,18 @@
+[Fri Jun 29 21:56:12 2018] Building DAG of jobs...
+[Fri Jun 29 21:56:12 2018] Using shell: /usr/bin/bash
+[Fri Jun 29 21:56:12 2018] Provided cores: 1
+[Fri Jun 29 21:56:12 2018] Rules claiming more threads will be scaled down.
+[Fri Jun 29 21:56:12 2018] Job counts:
+[Fri Jun 29 21:56:12 2018] 	count	jobs
+[Fri Jun 29 21:56:12 2018] 	1	read_dist_plot
+[Fri Jun 29 21:56:12 2018] 	1
+
+[Fri Jun 29 21:56:12 2018] rule read_dist_plot:
+[Fri Jun 29 21:56:12 2018]     input: qc/aligned/SRR6954502.unassembled.read_distribution.txt
+[Fri Jun 29 21:56:12 2018]     output: output/read_distribution/MammaryGland.Involution.SRR6954502.unassembled.png
+[Fri Jun 29 21:56:12 2018]     jobid: 0
+[Fri Jun 29 21:56:12 2018]     wildcards: tissue=MammaryGland.Involution, srr=SRR6954502, readtype=unassembled
+
+Saving 7 x 7 in image
+[Fri Jun 29 21:56:15 2018] Finished job 0.
+[Fri Jun 29 21:56:15 2018] 1 of 1 steps (100%) done

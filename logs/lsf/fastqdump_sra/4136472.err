@@ -1,0 +1,23 @@
+[Fri Jun 29 16:08:56 2018] Building DAG of jobs...
+[Fri Jun 29 16:08:56 2018] Using shell: /usr/bin/bash
+[Fri Jun 29 16:08:56 2018] Provided cores: 8
+[Fri Jun 29 16:08:56 2018] Rules claiming more threads will be scaled down.
+[Fri Jun 29 16:08:56 2018] Job counts:
+[Fri Jun 29 16:08:56 2018] 	count	jobs
+[Fri Jun 29 16:08:56 2018] 	1	fastqdump_sra
+[Fri Jun 29 16:08:56 2018] 	1
+
+[Fri Jun 29 16:08:56 2018] rule fastqdump_sra:
+[Fri Jun 29 16:08:56 2018]     input: data/sra/SRR6954502.sra
+[Fri Jun 29 16:08:56 2018]     output: data/fastq/raw/SRR6954502_1.fastq.gz, data/fastq/raw/SRR6954502_2.fastq.gz
+[Fri Jun 29 16:08:56 2018]     jobid: 0
+[Fri Jun 29 16:08:56 2018]     wildcards: srr=SRR6954502
+[Fri Jun 29 16:08:56 2018]     threads: 8
+
+SRR ids: ['data/sra/SRR6954502.sra']
+extra args: ['--split-files', '--gzip']
+tempdir: /scratch/fanslerm/pfd_cau0r5nw
+data/sra/SRR6954502.sra spots: 25995326
+blocks: [[1, 3249415], [3249416, 6498830], [6498831, 9748245], [9748246, 12997660], [12997661, 16247075], [16247076, 19496490], [19496491, 22745905], [22745906, 25995326]]
+[Fri Jun 29 16:16:09 2018] Finished job 0.
+[Fri Jun 29 16:16:09 2018] 1 of 1 steps (100%) done
