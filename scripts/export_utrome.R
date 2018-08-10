@@ -1,14 +1,10 @@
 #!/usr/bin/env Rscript
 
+library(BSgenome.Mmusculus.UCSC.mm10)
 library(rtracklayer)
 library(GenomicRanges)
-library(gUtils)
-library(BSgenome.Mmusculus.UCSC.mm10)
-library(stringr)
-library(ggplot2)
-library(ggmosaic)
-library(dplyr)
 library(GenomicFeatures)
+library(gUtils)
 
 ## bypass X11 rendering 
 options(bitmapType='cairo')
@@ -16,7 +12,7 @@ options(bitmapType='cairo')
 args = commandArgs(trailingOnly=TRUE)
 
 if (length(args) != 7) {
-    stop("Incorrect number of arguments!\nUsage:\n> augment_transcriptome.R <cores> <upstreamUTRFile> <downstreamUTRFile> <annotFile> <txLength> <resultsPrefix> <resultsSuffix>\n")
+    stop("Incorrect number of arguments!\nUsage:\n> export_utrome.R <cores> <upstreamUTRFile> <downstreamUTRFile> <annotFile> <txLength> <resultsPrefix> <resultsSuffix>\n")
 }
 
 arg.cores <- as.integer(args[1])
@@ -54,6 +50,7 @@ children.txs.dt <- gr.findoverlaps(
 
 children.txs.dt <- children.txs.dt[ID == Parent]
 children.txs.dt[, width := end - start]
+children.txs.dt <- children.txs.dt[order(seqnames, start), ]
 
 clipTranscript <- function (dt) {
     tx.strand <- dt$strand[[1]]

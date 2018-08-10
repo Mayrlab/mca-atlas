@@ -13,6 +13,9 @@ metadataFile:
 gencodeGFF:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.gff3.gz"
 
+gencodeSortedGFF:
+  "/data/mayrc/db/mm10/gencode.vM17.annotation.sorted.gff3.gz"
+
 gencodeBED:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.bed"
 

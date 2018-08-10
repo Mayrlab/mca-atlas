@@ -3,6 +3,8 @@ configfile: "config.yaml"
 wildcard_constraints:
     srr="SRR\d+"
 
+shell.prefix("source ~/.bashrc; ")
+    
 import pandas as pd
 import os
 
@@ -456,6 +458,10 @@ rule augment_transcriptome:
         "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gtf",
         "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
         "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gtf"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+",
+        likelihood = "0.\d+"
     threads: 24
     resources:
         mem = 8,
@@ -473,10 +479,15 @@ rule export_utrome:
     input:
         utr3 = "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
         ext3 = "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
-        annot = config["gencodeGFF"]
+        annot = config["gencodeSortedGFF"]
     output:
         gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
         fa = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+",
+        likelihood = "0.\d+",
+        width = "\d+"
     threads: 4
     params:
         prefix = "adult",
@@ -484,4 +495,71 @@ rule export_utrome:
     shell:
         """
         scripts/export_utrome.R {threads} {input.utr3} {input.ext3} {input.annot} {wildcards.width} {params.prefix} {params.suffix}
+        """
+
+rule sort_utrome:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf"
+    output:
+        gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz",
+        idx = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz.tbi"
+    threads: 4
+    resources:
+        mem = 6
+    shell:
+        """
+        cat {input} | awk '!( $0 ~ /^#/ )' | sort --parallel={threads} -S4G -k1,1 -k4,4n | bgzip -c > {output.gtf}
+        tabix {output.gtf}
+        """
+
+rule plot_utrome_stats:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
+    output:
+        "qc/utrome/adult.utrome.txsPerGene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.exonsPerTx.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.lengths.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.dists.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.distsByChr.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.sitesPerGene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.sitesPerGene.log.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.txsPerSite.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
+        "qc/utrome/adult.utrome.txsPerSite.log.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+",
+        likelihood = "0.\d+",
+        width = "\d+"
+    threads: 1
+    params:
+        prefix = "adult",
+        suffix = lambda wcs: "e%s.t%s.f%s.w%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood, wcs.width)
+    shell:
+        """
+        scripts/plot_utrome_stats.R {threads} {input} {params.prefix} {params.suffix}
+        """
+
+        
+rule kallisto_index:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
+    output:
+        "data/kallisto/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
+    resources:
+        mem = 16
+    shell:
+        """
+        kallisto index -i {output} {input}
+        """
+
+rule bam_mv_bxs:
+    input:
+        "data/bam/{srr}.{readtype}.bam"
+    output:
+        bam = "data/bam/{srr}.{readtype}.bxs.bam",
+        idx = "data/bam/{srr}.{readtype}.bxs.bam.bai"
+    shell:
+        """
+        samtools view -h {input} | awk '{ if($0 ~ "^@") {print $0} else { split($1, read_name, "_"); $1 = read_name[1]; print $0"\tCB:Z:"read_name[2]"\tRX:Z:"read_name[3]}}' | samtools view -b > {output.bam}
+        samtools index {output.bam}
         """
