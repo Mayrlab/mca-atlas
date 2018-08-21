@@ -5,7 +5,8 @@ library(rtracklayer)
 library(GenomicRanges)
 library(GenomicFeatures)
 library(gUtils)
-
+library(stringr)
+    
 ## bypass X11 rendering 
 options(bitmapType='cairo', device='png')
 
@@ -32,6 +33,9 @@ annotation.gr <- keepStandardChromosomes(import(arg.annotFile, genome='mm10'))
 upstream.annotation.gr <- keepStandardChromosomes(import(arg.upstreamUTRFile, genome='mm10'))
 extended.annotation.gr <- keepStandardChromosomes(import(arg.downstreamUTRFile, genome='mm10'))
 augmented.gr <- grbind(annotation.gr, upstream.annotation.gr, extended.annotation.gr)
+
+## Correct for Grp-Rax mislabelling in GENCODE
+mcols(augmented.gr)[augmented.gr$gene_id == "ENSMUSG00000024517.16", "gene_name"] <- "Grp"
 
 ## Adjust to max transcript size
 genes.gr <- augmented.gr %Q% (type == 'gene')
@@ -227,7 +231,8 @@ cat("Extracting exons from TxDb...\n")
 utrome.exons <- exons(utrome.txdb, columns = c('gene_id', 'tx_name', 'exon_name'))
 mcols(utrome.exons)$type <- 'exon'
 mcols(utrome.exons)$source <- 'GENCODE.vM17_MouseCellAtlas'
-mcols(utrome.exons)$transcript_id <- as(mcols(utrome.exons)$tx_name, "CharacterList")
+mcols(utrome.exons)$transcript_id <- as(utrs.dt[as.character(utrome.exons$tx_name), utr.name], "CharacterList")
+mcols(utrome.exons)$transcript_name <- mcols(utrome.exons)$tx_name
 mcols(utrome.exons)$exon_id <- as(mcols(utrome.exons)$exon_name, "CharacterList")
 mcols(utrome.exons)$tx_id <- NULL
 mcols(utrome.exons)$tx_name <- NULL
@@ -237,8 +242,8 @@ cat("Extracting transcripts from TxDb...\n")
 utrome.txs <- transcripts(utrome.txdb, columns = c('gene_id', 'tx_id', 'tx_name'))
 mcols(utrome.txs)$type <- 'transcript'
 mcols(utrome.txs)$source <- 'GENCODE.vM17_MouseCellAtlas'
-mcols(utrome.txs)$transcript_id <- as(mcols(utrome.txs)$tx_name, "CharacterList")
-mcols(utrome.txs)$transcript_name <- utrs.dt[utrome.txs$tx_name, utr.name]
+mcols(utrome.txs)$transcript_id <- as(utrs.dt[as.character(utrome.txs$tx_name), utr.name], "CharacterList")
+mcols(utrome.txs)$transcript_name <- mcols(utrome.txs)$tx_name
 mcols(utrome.txs)$tx_id <- NULL
 mcols(utrome.txs)$tx_name <- NULL
 

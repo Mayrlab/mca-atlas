@@ -12,7 +12,7 @@ suppressMessages({
 })
 
 ## bypass X11 rendering 
-options(bitmapType = 'cairo')
+options(bitmapType = 'cairo', device ='png')
 
 args = commandArgs(trailingOnly=TRUE)
 

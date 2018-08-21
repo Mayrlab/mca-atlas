@@ -563,3 +563,9 @@ rule bam_mv_bxs:
         samtools view -h {input} | awk '{ if($0 ~ "^@") {print $0} else { split($1, read_name, "_"); $1 = read_name[1]; print $0"\tCB:Z:"read_name[2]"\tRX:Z:"read_name[3]}}' | samtools view -b > {output.bam}
         samtools index {output.bam}
         """
+
+##rule demux_map:
+##    input:
+##        "data/fastq/trimmed/{srr}.{readtype}.clean.fastq.gz"
+##    output:
+##        bam = "data/
