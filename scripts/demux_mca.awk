@@ -8,10 +8,12 @@ BEGIN {
 }
 {
     if (NR%4 == 1) {
-	match($1, /.*_([ACGT]{18})_.*/, bx);
+	match($1, /.*_([ACGT]{18})_([ACGTN]{6}).*/, bx);
+	print bx[2] >> outdir"/"prefix"."bx[1]".umi";
     }
-    print > outdir"/"prefix"."bx[1]".fastq";
-    if (NR%400000 == 0) {
+    print >> outdir"/"prefix"."bx[1]".fastq";
+    
+    if (NR%40000 == 0) {
 	printf("[INFO] %d reads processed\n", NR/4) > "/dev/stderr";
     }
 }

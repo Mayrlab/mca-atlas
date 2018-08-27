@@ -21,4 +21,11 @@ else
     cat $fastq | awk -v prefix="$prefix" -v outdir="$outDir" -f scripts/demux_mca.awk
 fi
 
+## Generate batch file
+ls $outDir/*.fastq | awk -v prefix="$prefix" -v outdir="$outDir" '
+{
+   match($0, /(.*\/)([^\/]+).fastq/, cell); 
+   print cell[2]"\t"cell[1]cell[2]".umi\t"$0 > outdir"/"prefix".dat"
+}'
+
 echo "Demultiplexing complete."

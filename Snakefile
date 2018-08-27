@@ -22,7 +22,6 @@ metadata = pd.merge(metadata, sample_batch, on = "Sample_Name")
 
 annotations = pd.merge(annotations, metadata, on = "Batch")
 
-
 print("Loaded annotations for %d cells from %d libraries and %d tissues, comprising %d clusters." % (
     len(annotations), len(annotations.Batch.unique()), len(annotations.Tissue.unique()), len(annotations.ClusterID.unique())))
 
@@ -280,8 +279,8 @@ rule hisat2_PE:
         r1 = "data/fastq/trimmed/{srr}.unassembled_1.clean.fastq.gz",
         r2 = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz"
     output:
-        bam = "data/bam/{srr}.unassembled.bam",
-        bai = "data/bam/{srr}.unassembled.bam.bai"
+        bam = "data/bam/hisat2/{srr}.unassembled.bam",
+        bai = "data/bam/hisat2/{srr}.unassembled.bam.bai"
     params:
         sam = config["tmp_dir"] + "/{srr}.unassembled.sam",
         tmp_dir = config["tmp_dir"],
@@ -300,8 +299,8 @@ rule hisat2_SE:
     input:
         "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz"
     output:
-        bam = "data/bam/{srr}.assembled.bam",
-        bai = "data/bam/{srr}.assembled.bam.bai"
+        bam = "data/bam/hisat2/{srr}.assembled.bam",
+        bai = "data/bam/hisat2/{srr}.assembled.bam.bai"
     params:
         tmp_dir = config["tmp_dir"],
         idx = config['hisatIndex'],
@@ -334,7 +333,7 @@ rule read_dist_plot_adult:
 
 rule cleavage_coverage:
     input:
-        "data/bam/{srr}.assembled.bam"
+        "data/bam/hisat2/{srr}.assembled.bam"
     output:
         neg = "data/coverage/{srr}.assembled.negative.txt.gz",
         pos = "data/coverage/{srr}.assembled.positive.txt.gz"
@@ -554,18 +553,34 @@ rule kallisto_index:
 
 rule bam_mv_bxs:
     input:
-        "data/bam/{srr}.{readtype}.bam"
+        "data/bam/hisat2/{srr}.{readtype}.bam"
     output:
-        bam = "data/bam/{srr}.{readtype}.bxs.bam",
-        idx = "data/bam/{srr}.{readtype}.bxs.bam.bai"
+        bam = "data/bam/hisat2/{srr}.{readtype}.bxs.bam",
+        idx = "data/bam/hisat2/{srr}.{readtype}.bxs.bam.bai"
     shell:
         """
         samtools view -h {input} | awk '{ if($0 ~ "^@") {print $0} else { split($1, read_name, "_"); $1 = read_name[1]; print $0"\tCB:Z:"read_name[2]"\tRX:Z:"read_name[3]}}' | samtools view -b > {output.bam}
         samtools index {output.bam}
         """
 
-##rule demux_map:
-##    input:
-##        "data/fastq/trimmed/{srr}.{readtype}.clean.fastq.gz"
-##    output:
-##        bam = "data/
+rule demux_kallisto_pseudo:
+    input:
+        fq = "data/fastq/trimmed/{srr}.{readtype}.clean.fastq.gz",
+        kdx = "data/kallisto/adult.utrome.e20.t100.f0.999.w300.kdx"
+    output:
+        "data/tcc/{srr}/{readtype}/matrix.cells",
+        "data/tcc/{srr}/{readtype}/matrix.ec",
+        "data/tcc/{srr}/{readtype}/matrix.tsv",
+        "data/tcc/{srr}/{readtype}/run_info.json"
+    params:
+        fqDir = config["tmp_dir"] + "/{srr}/{readtype}",
+        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        outDir = "data/tcc/{srr}/{readtype}"
+    shell:
+        """
+        rm -rf {params.fqDir}
+        scripts/demux_fastq.sh {input.fq} {params.fqDir} {params.prefix}
+        kallisto pseudo --umi -i {input.kdx} -o {params.outDir} -b {params.fqDir}/{params.prefix}.dat
+        rm -rf {params.fqDir}
+        """
+
