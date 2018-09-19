@@ -395,17 +395,19 @@ rule cleanUpdTSeq_adult:
     input:
         "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz"
     output:
-        res = "qc/cleavage-sites/adult.classified.e{epsilon}.t{threshold}.tsv.gz",
-        hist = "qc/cleavage-sites/adult.posteriors.e{epsilon}.t{threshold}.png"
+        res = "qc/cleavage-sites/adult.classified.e{epsilon}.t{threshold}.f{likelihood}.tsv.gz",
+        hist = "qc/cleavage-sites/adult.posteriors.e{epsilon}.t{threshold}.f{likelihood}.png",
+        bed = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz"
     wildcard_constraints:
         epsilon = "\d+",
-        threshold = "\d+"
+        threshold = "\d+",
+        likelihood = "0.\d+"
     resources:
         walltime=24,
-        mem = 24
+        mem = 128
     shell:
         """
-        scripts/classify_cleavage_sites.R {input} {output.res} {output.hist}
+        scripts/classify_cleavage_sites.R {input} {wildcards.likelihood} {output.res} {output.hist}
         """
 
 rule intersect_polyASite:

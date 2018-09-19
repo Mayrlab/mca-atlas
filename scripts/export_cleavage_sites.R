@@ -34,7 +34,8 @@ arg.outSuffix <- args[9]
 ## Load References
 mm10 <- BSgenome.Mmusculus.UCSC.mm10
 
-annotation.gr <- keepStandardChromosomes(import(arg.annotFile, genome='mm10'))
+annotation.gr <- keepStandardChromosomes(import(arg.annotFile, genome='mm10'),
+                                         pruning.mode="coarse")
 
 polyASites.df <- read_tsv(arg.pasFile, na=c("NA", "."),
                           col_names = c("chrom", "start", "stop", "name",
@@ -47,11 +48,11 @@ polyASites.gr <- makeGRangesFromDataFrame(polyASites.df, keep.extra.columns = TR
 ## Load data
 sites.gr <- import(arg.filteredInFile, genome='mm10')
 names(sites.gr) <- sites.gr$name
-sites.gr <- keepStandardChromosomes(sites.gr)
+sites.gr <- keepStandardChromosomes(sites.gr, pruning.mode="coarse")
 
 sites.all.gr <- import(arg.fullInFile, genome='mm10')
 names(sites.all.gr) <- sites.all.gr$name
-sites.all.gr <- keepStandardChromosomes(sites.all.gr)
+sites.all.gr <- keepStandardChromosomes(sites.all.gr, pruning.mode="coarse")
 
 
 ## Validated Sites
