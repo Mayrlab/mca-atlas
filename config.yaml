@@ -16,9 +16,18 @@ gencodeGFF:
 gencodeSortedGFF:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.sorted.gff3.gz"
 
+gencodeGTF:
+  "/data/mayrc/db/mm10/gencode.vM17.annotation.gtf.gz"
+
 gencodeBED:
   "/data/mayrc/db/mm10/gencode.vM17.annotation.bed"
 
+gencodeKallistoIndex:
+  "/data/mayrc/db/mm10/gencode.vM17.transcripts.kdx"
+
+chromeSizes:
+  "/data/mayrc/db/mm10/mm10.chrom.sizes"
+  
 polyASiteBED:
   "/data/mayrc/db/mm10/polyASite.clusters.mm10.bed.gz"
   

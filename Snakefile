@@ -180,7 +180,7 @@ rule umitools_extract_assembled:
         bx = "data/barcodes/{srr}.raw.whitelist.umi500.txt",
         fq = "data/fastq/assembled/{srr}.assembled.fastq.gz"
     output:
-        "data/fastq/extracted/{srr}.assembled.bx.fastq.gz"
+        temp("data/fastq/extracted/{srr}.assembled.bx.fastq.gz")
     log:
         "logs/umi_tools/{srr}.assembled.extract.log"
     resources:
@@ -201,8 +201,8 @@ rule umitools_extract_unassembled:
         r1 = "data/fastq/unassembled/{srr}.unassembled_1.fastq.gz",
         r2 = "data/fastq/unassembled/{srr}.unassembled_2.fastq.gz"
     output:
-        r1 = "data/fastq/extracted/{srr}.unassembled_1.bx.fastq.gz",
-        r2 = "data/fastq/extracted/{srr}.unassembled_2.bx.fastq.gz"
+        r1 = temp("data/fastq/extracted/{srr}.unassembled_1.bx.fastq.gz"),
+        r2 = temp("data/fastq/extracted/{srr}.unassembled_2.bx.fastq.gz")
     log:
         "logs/umi_tools/{srr}.unassembled.extract.log"
     resources:
@@ -586,3 +586,134 @@ rule demux_kallisto_pseudo:
         rm -rf {params.fqDir}
         """
 
+rule demux_kallisto_quant:
+    input:
+        fq_assembled = "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz",
+        fq_unassembled = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
+        kdx = "data/kallisto/adult.utrome.e3.t200.f0.999.w300.kdx",
+        gtf = "data/gff/adult.utrome.e3.t200.f0.999.w300.gtf"
+    output:
+        flag="data/kallisto/{srr}/.snakemake.demux_kallisto_quant.flag"
+    threads: 8
+    resources:
+        mem = 12,
+        walltime = 24
+    params:
+        fqDir = config["tmp_dir"] + "/fastq/{srr}",
+        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        outDir = "data/kallisto/{srr}",
+        chroms = config["chromeSizes"],
+        bufferSize = "64G"
+    shell:
+        """
+        rm -rf {params.fqDir}
+        scripts/demux_fastq_ordered.sh {input.fq_assembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
+        scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
+        while read -r cell;
+        do
+          kallisto quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
+            --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
+            -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
+        done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
+        rm -rf {params.fqDir}
+        touch {output.flag}
+        """
+
+rule demux_kallisto_quant_gencode:
+    input:
+        fq_assembled = "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz",
+        fq_unassembled = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
+        kdx = config["gencodeKallistoIndex"],
+        gtf = config["gencodeGTF"]
+    output:
+        flag="data/kallisto/gencode/{srr}/.snakemake.demux_kallisto_quant_gencode.flag"
+    threads: 8
+    resources:
+        mem = 12,
+        walltime = 24
+    params:
+        fqDir = config["tmp_dir"] + "/fastq/gencode/{srr}",
+        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        outDir = "data/kallisto/gencode/{srr}",
+        chroms = config["chromeSizes"],
+        bufferSize = "64G"
+    shell:
+        """
+        rm -rf {params.fqDir}
+        scripts/demux_fastq_ordered.sh {input.fq_assembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
+        scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
+        while read -r cell;
+        do
+          kallisto quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
+            --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
+            -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
+        done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
+        rm -rf {params.fqDir}
+        touch {output.flag}
+        """
+
+rule gtf_tx2gene:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
+    output:
+        "data/gff/adult.utrome.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
+    shell:
+        """
+        zcat {input} | awk -f scripts/gtf_tx2gene.awk > {output}
+        """
+
+## The strong dependence of memory on cell count demanded using a dynamic allocation.  The linear relationship was
+## determined by running a selection of libraries. Although walltime also scaled linearly, the maximum walltime
+## still remained below 4 hours.
+rule kallisto_to_sce:
+    input:
+        flag="data/kallisto/{srr}/.snakemake.demux_kallisto_quant.flag",
+        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w300.tsv"
+    output:
+        txs="data/kallisto/sce/{srr}.txs.rds",
+        genes="data/kallisto/sce/{srr}.genes.rds"
+    params:
+        inputDir=lambda wcs: "data/kallisto/%s" % wcs.srr
+    resources:
+        mem=lambda wcs: 8 + round(0.012*len(next(os.walk('data/kallisto/%s' % wcs.srr))[1]))
+    shell:
+        """
+        scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
+        """
+
+rule kallisto_to_sce_gencode:
+    input:
+        flag="data/kallisto/gencode/{srr}/.snakemake.demux_kallisto_quant_gencode.flag",
+        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w300.tsv"
+    output:
+        txs="data/kallisto/gencode/sce/{srr}.txs.rds",
+        genes="data/kallisto/gencode/sce/{srr}.genes.rds"
+    params:
+        inputDir=lambda wcs: "data/kallisto/gencode/%s" % wcs.srr
+    resources:
+        mem=lambda wcs: 8 + round(0.012*len(next(os.walk('data/kallisto/gencode/%s' % wcs.srr))[1]))
+    shell:
+        """
+        scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
+        """
+
+rule plot_saturation:
+    input:
+        "data/kallisto/sce/{srr}.{level}.rds"
+    output:
+        base="qc/saturation/{srr}.{level}.png",
+        celltype="qc/saturation/{srr}.{level}.cellTypes.png",
+        labeled="qc/saturation/{srr}.{level}.labeledOnly.png"
+    params:
+        label=lambda wcs: "'Gene Counts'" if wcs.level == 'genes' else "'Transcript Counts'",
+        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        annot=config["annotationFile"]
+    resources:
+        mem=48
+    wildcard_constraints:
+        level = "(genes|txs)"
+    version: 1.0
+    shell:
+        """
+        scripts/plot_saturation.R {input} {params.annot} {params.label} {params.batch} {output.base}
+        """
