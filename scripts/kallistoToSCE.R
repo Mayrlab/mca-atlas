@@ -47,7 +47,8 @@ sce <- calculateQCMetrics(sce, feature_controls=list(mito=mitoTXs))
 ################################################################################
                                         # Gene Counts
 ################################################################################
-sce.genes <- summariseExprsAcrossFeatures(sce, exprs_values="counts", summarise_by="gene_symbol")
+## NB: Since we are working with 3' end tag counts, we do not scale by TPM
+sce.genes <- summariseExprsAcrossFeatures(sce, exprs_values="counts", summarise_by="gene_symbol", scaled_tpm_counts=FALSE)
 names(rowData(sce.genes)) <- c("gene_symbol")
 
 ## WARNING: There are 12 gene symbols that each have 2 ENSMUSG entries
