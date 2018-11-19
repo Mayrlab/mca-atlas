@@ -25,6 +25,9 @@ gencodeBED:
 gencodeKallistoIndex:
   "/data/mayrc/db/mm10/gencode.vM17.transcripts.kdx"
 
+gencodeTx2Gene:
+  "/data/mayrc/db/mm10/gencode.vM17.tx2gene.tsv"
+  
 chromeSizes:
   "/data/mayrc/db/mm10/mm10.chrom.sizes"
   
@@ -61,3 +64,27 @@ barcodeRegex:
 minReadLength: 21
 
 hisatIndex: "/data/mayrc/db/mm10/hisat2_mm10_genome"
+
+peakRange:
+  Apoe:   "chr7:19696236-19697103"
+  Clptm1: "chr7:19633229-19633962"
+  Ncoa6:  "chr2:155390656-155391150"
+  Abca1:  "chr4:53030777-53031777"
+  Rnps1:  "chr17:24424900-24425900"
+  Lyrm5:  "chr6:145215835-145216548"
+
+peakStrand:
+  Apoe:   "+"
+  Clptm1: "+"
+  Ncoa6:  "+"
+  Abca1:  "+"
+  Rnps1:  "-"
+  Lyrm5:  "-"
+
+txEnd:
+  Apoe:    19696236
+  Clptm1:  19633229
+  Ncoa6:  155390656
+  Abca1:   53030777
+  Rnps1:   24425900
+  Lyrm5:  145216548

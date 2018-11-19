@@ -356,6 +356,60 @@ rule sum_cov_adult:
         zcat {input.neg} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.neg}
         zcat {input.pos} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.pos}
         """
+rule peak_size:
+    input:
+        assembled="data/bam/hisat2/{srr}.assembled.bam",
+        unassembled="data/bam/hisat2/{srr}.unassembled.bam"
+    output:
+        "data/coverage/peaks/{gene}/{srr}.raw_counts.txt"
+    params:
+        region=lambda wcs: config['peakRange'][wcs.gene],
+        strand=lambda wcs: config['peakStrand'][wcs.gene],
+        tmp_dir=config['tmp_dir'] + "/peak_cov",
+        tmp1=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".assembled.txt",
+        tmp2=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".unassembled.txt"
+    shell:
+        """
+        mkdir -p {params.tmp_dir}
+        bedtools genomecov -dz -3 -strand '{params.strand}' -ibam <(samtools view -b {input.assembled} '{params.region}') > {params.tmp1}
+        bedtools genomecov -dz -3 -strand '{params.strand}' -ibam <(samtools view -b {input.unassembled} '{params.region}') > {params.tmp2}
+        cat {params.tmp1} {params.tmp2} | datamash -s -g 1,2 sum 3 | sort -k1,1 -k2,2n > {output}
+        rm -f {params.tmp1} {params.tmp2}
+        """
+
+# rule peak_size_Ncoa6:
+#     input:
+#         assembled="data/bam/hisat2/{srr}.assembled.bam",
+#         unassembled="data/bam/hisat2/{srr}.unassembled.bam"
+#     output:
+#         "data/coverage/peaks/Ncoa6/{srr}.raw_counts.txt"
+#     params:
+#         region="chr2:155390656-155391150",
+#         tmp_dir=config['tmp_dir'] + "/peak_cov",
+#         tmp1=config['tmp_dir'] + "/peak_cov/{srr}.Ncoa6.assembled.txt",
+#         tmp2=config['tmp_dir'] + "/peak_cov/{srr}.Ncoa6.unassembled.txt"
+#     shell:
+#         """
+#         mkdir -p {params.tmp_dir}
+#         bedtools genomecov -dz -3 -strand '+' -ibam <(samtools view -b {input.assembled} {params.region}) > {params.tmp1}
+#         bedtools genomecov -dz -3 -strand '+' -ibam <(samtools view -b {input.unassembled} {params.region}) > {params.tmp2}
+#         cat {params.tmp1} {params.tmp2} | datamash -s -g 1,2 sum 3 | sort -k1,1 -k2,2n > {output}
+#         rm -f {params.tmp1} {params.tmp2}
+#         """
+
+rule plot_peak_cdf:
+    input:
+        "data/coverage/peaks/{gene}/{srr}.raw_counts.txt"
+    output:
+        "qc/peak-width/{gene}/{srr}.cdf.png"
+    params:
+        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        startPos=lambda wcs: config['txEnd'][wcs.gene]
+    shell:
+        """
+        scripts/plot_peak_cdf.R {input} {params.startPos} {wildcards.gene} {params.batch} {output}
+        """
+
 
 rule merge_cov_adult:
     input:
@@ -590,18 +644,18 @@ rule demux_kallisto_quant:
     input:
         fq_assembled = "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz",
         fq_unassembled = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
-        kdx = "data/kallisto/adult.utrome.e3.t200.f0.999.w300.kdx",
-        gtf = "data/gff/adult.utrome.e3.t200.f0.999.w300.gtf"
+        kdx = "data/kallisto/adult.utrome.e3.t200.f0.999.w{width}.kdx",
+        gtf = "data/gff/adult.utrome.e3.t200.f0.999.w{width}.gtf"
     output:
-        flag="data/kallisto/{srr}/.snakemake.demux_kallisto_quant.flag"
+        flag="data/kallisto/utrome.w{width}/{srr}/.snakemake.demux_kallisto_quant.flag"
     threads: 8
     resources:
-        mem = 12,
-        walltime = 24
+        mem=12,
+        walltime=48
     params:
         fqDir = config["tmp_dir"] + "/fastq/{srr}",
         prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        outDir = "data/kallisto/{srr}",
+        outDir = "data/kallisto/utrome.w{width}/{srr}",
         chroms = config["chromeSizes"],
         bufferSize = "64G"
     shell:
@@ -630,7 +684,7 @@ rule demux_kallisto_quant_gencode:
     threads: 8
     resources:
         mem = 12,
-        walltime = 24
+        walltime = 72
     params:
         fqDir = config["tmp_dir"] + "/fastq/gencode/{srr}",
         prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
@@ -667,15 +721,15 @@ rule gtf_tx2gene:
 ## still remained below 4 hours.
 rule kallisto_to_sce:
     input:
-        flag="data/kallisto/{srr}/.snakemake.demux_kallisto_quant.flag",
-        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w300.tsv"
+        flag="data/kallisto/utrome.w{width}/{srr}/.snakemake.demux_kallisto_quant.flag",
+        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w{width}.tsv"
     output:
-        txs="data/kallisto/sce/{srr}.txs.rds",
-        genes="data/kallisto/sce/{srr}.genes.rds"
+        txs="data/kallisto/utrome.w{width}/sce/{srr}.txs.rds",
+        genes="data/kallisto/utrome.w{width}/sce/{srr}.genes.rds"
     params:
-        inputDir=lambda wcs: "data/kallisto/%s" % wcs.srr
+        inputDir="data/kallisto/utrome.w{width}/{srr}"
     resources:
-        mem=lambda wcs: 8 + round(0.012*len(next(os.walk('data/kallisto/%s' % wcs.srr))[1]))
+        mem=lambda wcs: 8 + round(0.020*len(next(os.walk('data/kallisto/utrome.w%s/%s' % (wcs.width, wcs.srr)))[1]))
     shell:
         """
         scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
@@ -684,14 +738,14 @@ rule kallisto_to_sce:
 rule kallisto_to_sce_gencode:
     input:
         flag="data/kallisto/gencode/{srr}/.snakemake.demux_kallisto_quant_gencode.flag",
-        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w300.tsv"
+        tx2gene=config['gencodeTx2Gene']
     output:
         txs="data/kallisto/gencode/sce/{srr}.txs.rds",
         genes="data/kallisto/gencode/sce/{srr}.genes.rds"
     params:
-        inputDir=lambda wcs: "data/kallisto/gencode/%s" % wcs.srr
+        inputDir=lambda wcs: "data/kallisto/gencode/{srr}"
     resources:
-        mem=lambda wcs: 8 + round(0.012*len(next(os.walk('data/kallisto/gencode/%s' % wcs.srr))[1]))
+        mem=lambda wcs: 8 + round(0.030*len(next(os.walk('data/kallisto/gencode/%s' % wcs.srr))[1]))
     shell:
         """
         scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
@@ -699,21 +753,41 @@ rule kallisto_to_sce_gencode:
 
 rule plot_saturation:
     input:
-        "data/kallisto/sce/{srr}.{level}.rds"
+        "data/kallisto/utrome.w{width}/sce/{srr}.{level}.rds"
     output:
-        base="qc/saturation/{srr}.{level}.png",
-        celltype="qc/saturation/{srr}.{level}.cellTypes.png",
-        labeled="qc/saturation/{srr}.{level}.labeledOnly.png"
+        base="qc/saturation/utrome.w{width}/{srr}.{level}.png",
+        celltype="qc/saturation/utrome.w{width}/{srr}.{level}.cellTypes.png",
+        labeled="qc/saturation/utrome.w{width}/{srr}.{level}.labeledOnly.png"
     params:
         label=lambda wcs: "'Gene Counts'" if wcs.level == 'genes' else "'Transcript Counts'",
         batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
         annot=config["annotationFile"]
     resources:
-        mem=48
+        mem=64
     wildcard_constraints:
         level = "(genes|txs)"
     version: 1.0
     shell:
         """
         scripts/plot_saturation.R {input} {params.annot} {params.label} {params.batch} {output.base}
+        """
+
+rule plot_genes_utrome_vs_gencode:
+    input:
+        utrome="data/kallisto/utrome.w{width}/sce/{srr}.genes.rds",
+        gencode="data/kallisto/gencode/sce/{srr}.genes.rds",
+        annot=config["annotationFile"]
+    output:
+        flag="qc/gene-counts/utrome.w{width}/.{srr}.utrome.gencode.flag"
+    params:
+        base="qc/gene-counts/utrome.w{width}",
+        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+    resources:
+        mem=64
+    version: 1.0
+    shell:
+        """
+        mkdir -p {params.base}/{params.batch}
+        scripts/plot_genes_utrome_vs_gencode.R {input.utrome} {input.gencode} {input.annot} {params.batch} {params.base}/{params.batch}/{params.batch}.compare.png
+        touch {output.flag}
         """
