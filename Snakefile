@@ -353,8 +353,8 @@ rule sum_cov_adult:
     threads: 4
     shell:
         """
-        zcat {input.neg} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.neg}
-        zcat {input.pos} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.pos}
+        gzip -cd {input.neg} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.neg}
+        gzip -cd {input.pos} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.pos}
         """
 rule peak_size:
     input:
@@ -438,8 +438,8 @@ rule cov_to_bed:
         threshold = "\d+"
     shell:
         """
-        zcat {input.neg} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > {params.raw}
-        zcat {input.pos} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":-\", $3, \"-\"}}' >> {params.raw}
+        gzip -cd {input.neg} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > {params.raw}
+        gzip -cd {input.pos} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":-\", $3, \"-\"}}' >> {params.raw}
         sort -k1,1 -k2,2n {params.raw} | bgzip > {output.gz}
         tabix -0 -p bed {output.gz}
         rm -f {params.raw}
@@ -713,7 +713,17 @@ rule gtf_tx2gene:
         "data/gff/adult.utrome.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
     shell:
         """
-        zcat {input} | awk -f scripts/gtf_tx2gene.awk > {output}
+        gzip -cd {input} | awk -f scripts/gtf_tx2gene.awk > {output}
+        """
+
+rule gtf_txid2txname:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
+    output:
+        "data/gff/adult.utrome.txid2txname.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
+    shell:
+        """
+        gzip -cd {input} | awk -f scripts/gtf_txid2txname.awk > {output}
         """
 
 ## The strong dependence of memory on cell count demanded using a dynamic allocation.  The linear relationship was

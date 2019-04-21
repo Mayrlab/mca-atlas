@@ -1,9 +1,5 @@
 library(Biostrings)
-library(stringr)
-library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
+library(tidyverse)
 
 ## bypass X11 rendering
 ## "device='png'" is workaround for bug in ggplot2 v3.0.0
@@ -53,6 +49,4 @@ g <- df %>% gather(PAS, Proportion, -Source) %>%
     ggplot(aes(x=PAS, y=Proportion, fill=Source)) +
     geom_col(position='dodge')
 
-ggsave("qc/test_PAS.png", g, width=12, height=6)
-    
-
+ggsave("qc/PAS_frequencies.utrome.e3.t200.f0.999.w500.png", g, width=12, height=6)
