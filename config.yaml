@@ -11,22 +11,22 @@ metadataFile:
   "data/SRP126776.run_table.tsv"
 
 gencodeGFF:
-  "/data/mayrc/db/mm10/gencode.vM17.annotation.gff3.gz"
+  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
 
 gencodeSortedGFF:
-  "/data/mayrc/db/mm10/gencode.vM17.annotation.sorted.gff3.gz"
+  "/data/mayrc/db/mm10/gencode.vM21.annotation.sorted.gff3.gz"
 
 gencodeGTF:
-  "/data/mayrc/db/mm10/gencode.vM17.annotation.gtf.gz"
+  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gtf.gz"
 
 gencodeBED:
-  "/data/mayrc/db/mm10/gencode.vM17.annotation.bed"
+  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.bed"
 
 gencodeKallistoIndex:
-  "/data/mayrc/db/mm10/gencode.vM17.transcripts.kdx"
+  "/data/mayrc/db/mm10/gencode.vM21.transcripts.kdx"
 
 gencodeTx2Gene:
-  "/data/mayrc/db/mm10/gencode.vM17.tx2gene.tsv"
+  "/data/mayrc/db/mm10/gencode.vM21.tx2gene.tsv"
   
 chromeSizes:
   "/data/mayrc/db/mm10/mm10.chrom.sizes"
