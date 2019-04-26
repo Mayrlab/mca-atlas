@@ -8,39 +8,28 @@ library(dplyr)
 library(data.table)
 library(readr)
 
+
 if (interactive()) {
-    arg.gtf <- "/data/mayrc/data/mca/gff/adult.utrome.e3.t200.f0.999.w500.gtf"
-    arg.overlap <- 200
-    arg.outFile <- "/scratch/fanslerm/adult.utrome.e3.t200.f0.999.w500.merge.tsv"
+    args <- c("/data/mayrc/data/mca/gff/adult.utrome.e3.t200.f0.999.w500.gtf",
+              "200",
+              "/scratch/fanslerm/adult.utrome.e3.t200.f0.999.w500.merge.tsv")
+} else {
+    args = commandArgs(trailingOnly=TRUE)
+    if (length(args) != 3) {
+        stop("Incorrect number of arguments!\nUsage:\n> merge_overlapping_utrs.R <gtf> <overlap> <outFile>\n")
+    }
 }
 
+arg.gtf    <- args[1]
+arg.overlap <- as.integer(args[2])
+arg.outFile   <- args[3]
+
+## load data
 utrs.gr <- import(arg.gtf)
 
 txs.gr <- utrs.gr[utrs.gr$type == 'transcript',]
-
 txs.ends.gr <- gr.end(txs.gr, ignore.strand=FALSE)
 
-
-## test.ends.gr <- txs.ends.gr[seqnames(txs.ends.gr) == "chr18",]
-
-## dist.map <- distanceToNearest(test.ends.gr, ignore.strand=FALSE)
-
-## mismatches <- mcols(test.
-
-## clear.idx <- which(mcols(dist.map)$distance >= 200)
-
-## df.out <- data.frame(tx_from=mcols(txs.ends.gr)[clear.idx, 'transcript_id'],
-##                      tx_to=mcols(txs.ends.gr)[clear.idx, 'transcript_id'])
-
-## dist.map <- dist.map[-clear.idx,]
-
-## df.hits <- tibble(tx_query=mcols(test.ends.gr)[queryHits(dist.map), 'transcript_id'],
-##                   tx_subject=mcols(test.ends.gr)[subjectHits(dist.map), 'transcript_id'])
-
-
-## df.test <- tibble(tx=test.ends.gr$transcript_id,
-##                   gene=test.ends.gr$gene_id,
-##                   end=end(test.ends.gr))
 
 ## extend downstream and get all intersections on the same strand
 overlaps.gr <- gr.findoverlaps(gr.start(txs.ends.gr, width=arg.overlap, clip=FALSE, ignore.strand=FALSE),

@@ -801,3 +801,15 @@ rule plot_genes_utrome_vs_gencode:
         scripts/plot_genes_utrome_vs_gencode.R {input.utrome} {input.gencode} {input.annot} {params.batch} {params.base}/{params.batch}/{params.batch}.compare.png
         touch {output.flag}
         """
+
+rule merge_overlapping_utrs:
+    input:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf"
+    output:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv"
+    params:
+        mergeDist=200
+    shell:
+        """
+        scripts/merge_overlapping_utrs.R {input} {params.mergeDist} {output}
+        """
