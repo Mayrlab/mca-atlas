@@ -14,7 +14,7 @@ gencodeGFF:
   "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
 
 gencodeSortedGFF:
-  "/data/mayrc/db/mm10/gencode.vM21.annotation.sorted.gff3.gz"
+  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
 
 gencodeGTF:
   "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gtf.gz"
