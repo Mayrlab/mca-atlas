@@ -813,3 +813,14 @@ rule merge_overlapping_utrs:
         """
         scripts/merge_overlapping_utrs.R {input} {params.mergeDist} {output}
         """
+
+rule intersect_utrome_txs:
+    input:
+        gtf="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
+        awk="scripts/bedtools_intersect_txids.awk"
+    output:
+        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.overlaps.tsv"
+    shell:
+        """
+        bedtools intersect -a <(awk '$3~/transcript/' {input.gtf}) -b <(awk '$3~/transcript/' {input.gtf}) -wa -wb | awk -f {input.awk} > {output}
+        """
