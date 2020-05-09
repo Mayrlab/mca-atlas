@@ -601,7 +601,7 @@ rule kallisto_index:
     output:
         "data/kallisto/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
     resources:
-        mem = 16
+        mem=2
     shell:
         """
         kallisto index -i {output} {input}
@@ -716,6 +716,18 @@ rule gtf_tx2gene:
         gzip -cd {input} | awk -f scripts/gtf_tx2gene.awk > {output}
         """
 
+rule ercc_tx2gene:
+    input:
+        utrome="data/gff/adult.utrome.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv",
+        ercc=config['erccGTF']
+    output:
+        "data/gff/adult.utrome.ercc.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
+    shell:
+        """
+        cp {input.utrome} {output}
+        awk -v OFS='\t' '{{print $1,$1,$1,$1}}' {input.ercc} >> {output}
+        """
+
 rule gtf_txid2txname:
     input:
         "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
@@ -814,6 +826,18 @@ rule merge_overlapping_utrs:
         scripts/merge_overlapping_utrs.R {input} {params.mergeDist} {output}
         """
 
+rule merge_overlapping_utrs_ercc:
+    input:
+        utrome="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv",
+        ercc=config['erccGTF']
+    output:
+        "data/gff/adult.utrome.ercc.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv"
+    shell:
+        """
+        cp {input.utrome} {output}
+        awk -v OFS='\t' '{{print $1,$1,$1}}' {input.ercc} >> {output}        
+        """
+
 rule intersect_utrome_txs:
     input:
         gtf="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
@@ -823,4 +847,22 @@ rule intersect_utrome_txs:
     shell:
         """
         bedtools intersect -a <(awk '$3~/transcript/' {input.gtf}) -b <(awk '$3~/transcript/' {input.gtf}) -wa -wb | awk -f {input.awk} > {output}
+        """
+
+rule kallisto_index_ercc:
+    input:
+        ercc=config['erccFASTA'],
+        utrome="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
+    output:
+        "data/kallisto/adult.utrome.ercc.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
+    params:
+        tmpDir=config['tmp_dir']
+    resources:
+        mem=2
+    shell:
+        """
+        TMP_FASTA={params.tmpDir}/ercc.$(basename {input.utrome})
+        cat {input.utrome} {input.ercc} > $TMP_FASTA
+        kallisto index -i {output} $TMP_FASTA
+        rm -rf $TMP_FASTA
         """

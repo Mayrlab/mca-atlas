@@ -27,6 +27,12 @@ gencodeKallistoIndex:
 
 gencodeTx2Gene:
   "/data/mayrc/db/mm10/gencode.vM21.tx2gene.tsv"
+
+erccFASTA:
+  "/data/mayrc/db/ercc92/ERCC92.fa"
+
+erccGTF:
+  "/data/mayrc/db/ercc92/ERCC92.gtf"
   
 chromeSizes:
   "/data/mayrc/db/mm10/mm10.chrom.sizes"
