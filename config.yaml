@@ -94,3 +94,5 @@ txEnd:
   Abca1:   53030777
   Rnps1:   24425900
   Lyrm5:  145216548
+
+kallistoBin: "/data/mayrc/software/kallisto_linux-v0.44.0/kallisto"

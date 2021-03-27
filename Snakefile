@@ -457,8 +457,8 @@ rule cleanUpdTSeq_adult:
         threshold = "\d+",
         likelihood = "0.\d+"
     resources:
-        walltime=24,
-        mem = 128
+        walltime=10,
+        mem=36  # most we observed was 34GB
     shell:
         """
         scripts/classify_cleavage_sites.R {input} {wildcards.likelihood} {output.res} {output.hist}
@@ -600,11 +600,13 @@ rule kallisto_index:
         "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
     output:
         "data/kallisto/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
+    params:
+        kallisto=config["kallistoBin"]
     resources:
         mem=2
     shell:
         """
-        kallisto index -i {output} {input}
+        {params.kallisto} index -i {output} {input}
         """
 
 rule bam_mv_bxs:
@@ -629,14 +631,15 @@ rule demux_kallisto_pseudo:
         "data/tcc/{srr}/{readtype}/matrix.tsv",
         "data/tcc/{srr}/{readtype}/run_info.json"
     params:
-        fqDir = config["tmp_dir"] + "/{srr}/{readtype}",
-        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        outDir = "data/tcc/{srr}/{readtype}"
+        fqDir=config["tmp_dir"] + "/{srr}/{readtype}",
+        prefix=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
+        outDir="data/tcc/{srr}/{readtype}",
+        kallisto=config["kallistoBin"]
     shell:
         """
         rm -rf {params.fqDir}
         scripts/demux_fastq.sh {input.fq} {params.fqDir} {params.prefix}
-        kallisto pseudo --umi -i {input.kdx} -o {params.outDir} -b {params.fqDir}/{params.prefix}.dat
+        {params.kallisto} pseudo --umi -i {input.kdx} -o {params.outDir} -b {params.fqDir}/{params.prefix}.dat
         rm -rf {params.fqDir}
         """
 
@@ -657,7 +660,8 @@ rule demux_kallisto_quant:
         prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
         outDir = "data/kallisto/utrome.w{width}/{srr}",
         chroms = config["chromeSizes"],
-        bufferSize = "64G"
+        bufferSize = "64G",
+        kallisto=config["kallistoBin"]
     shell:
         """
         rm -rf {params.fqDir}
@@ -665,7 +669,7 @@ rule demux_kallisto_quant:
         scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
         while read -r cell;
         do
-          kallisto quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
+          {params.kallisto} quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
             --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
             -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
         done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
@@ -690,7 +694,8 @@ rule demux_kallisto_quant_gencode:
         prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
         outDir = "data/kallisto/gencode/{srr}",
         chroms = config["chromeSizes"],
-        bufferSize = "64G"
+        bufferSize = "64G",
+        kallisto=config["kallistoBin"]
     shell:
         """
         rm -rf {params.fqDir}
@@ -698,7 +703,7 @@ rule demux_kallisto_quant_gencode:
         scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
         while read -r cell;
         do
-          kallisto quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
+          {params.kallisto} quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
             --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
             -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
         done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
@@ -856,13 +861,14 @@ rule kallisto_index_ercc:
     output:
         "data/kallisto/adult.utrome.ercc.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
     params:
-        tmpDir=config['tmp_dir']
+        tmpDir=config['tmp_dir'],
+        kallisto=config['kallistoBin']
     resources:
         mem=2
     shell:
         """
         TMP_FASTA={params.tmpDir}/ercc.$(basename {input.utrome})
         cat {input.utrome} {input.ercc} > $TMP_FASTA
-        kallisto index -i {output} $TMP_FASTA
+        {params.kallisto} index -i {output} $TMP_FASTA
         rm -rf $TMP_FASTA
         """

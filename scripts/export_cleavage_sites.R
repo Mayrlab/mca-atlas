@@ -14,10 +14,22 @@ library(dplyr)
 ## bypass X11 rendering 
 options(bitmapType='cairo')
 
-args = commandArgs(trailingOnly=TRUE)
+if (interactive()) {
+    args <- c("1",
+              "data/bed/cleavage-sites/adult.cleavage.e3.t200.bed.gz",
+              "data/bed/cleavage-sites/adult.cleavage.e3.t200.f0.0.bed.gz",
+              "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz",
+              "/data/mayrc/db/mm10/polyASite.clusters.mm10.bed.gz",
+              "1000",
+              "5000",
+              "adult",
+              "e3.t200.f0.0")
+} else {
+    args = commandArgs(trailingOnly=TRUE)
 
-if (length(args) != 9) {
-    stop("Incorrect number of arguments!\nUsage:\n> export_cleavage_sites.R <cores> <fullInFile> <filteredInFile> <annotFile> <polyASiteFile> <extendUpstream> <extendDownstream> <resultsPrefix> <resultsSuffix>\n")
+    if (length(args) != 9) {
+        stop("Incorrect number of arguments!\nUsage:\n> export_cleavage_sites.R <cores> <fullInFile> <filteredInFile> <annotFile> <polyASiteFile> <extendUpstream> <extendDownstream> <resultsPrefix> <resultsSuffix>\n")
+    }
 }
 
 arg.cores <- as.integer(args[1])
@@ -176,9 +188,11 @@ likely.sites.gr <- annotate.sites(likely.sites.gr + 1, annotation.gr,
                                   upstream = arg.extUpstream, downstream = arg.extDownstream,
                                   mc.cores = arg.cores)
 
-unlikely.sites.gr <- annotate.sites(unlikely.sites.gr + 1, annotation.gr,
-                                    upstream = arg.extUpstream, downstream = arg.extDownstream,
-                                    mc.cores = arg.cores)
+if (length(unlikely.sites.gr) > 0) { ## Include possibility of passing all sites
+    unlikely.sites.gr <- annotate.sites(unlikely.sites.gr + 1, annotation.gr,
+                                        upstream = arg.extUpstream, downstream = arg.extDownstream,
+                                        mc.cores = arg.cores)
+}
 
 ## Tabulate Annotation Categories
 annotation_counts.df <- data.frame(list(Class=character(0),
@@ -203,11 +217,13 @@ annotation_counts.df <- rbind(annotation_counts.df,
                                          Region=names(t_l),
                                          Count=as.numeric(t_l)))
 
-t_u <- table(unlikely.sites.gr$type)
-annotation_counts.df <- rbind(annotation_counts.df,
-                              data.frame(Class="Unlikely\n(cleanUpdTSeq)",
-                                         Region=names(t_u),
-                                         Count=as.numeric(t_u)))
+if (length(unlikely.sites.gr) > 0) {
+    t_u <- table(unlikely.sites.gr$type)
+    annotation_counts.df <- rbind(annotation_counts.df,
+                                  data.frame(Class="Unlikely\n(cleanUpdTSeq)",
+                                             Region=names(t_u),
+                                             Count=as.numeric(t_u)))
+}
 
 annotation_counts.df <- annotation_counts.df %>%
     mutate(Region = recode_factor(Region,
@@ -232,11 +248,15 @@ ggsave(sprintf("qc/cleavage-sites/%s.annotations.%s.png", arg.outPrefix, arg.out
        width = 12)
 
 ## Plot Scores By Evidence
-g <- ggplot(data = rbind(
-                data.frame(Evidence="Validated\n(GENCODE)", Score=validated.sites.gr$score),
-                data.frame(Evidence="Supported\n(PolyASite)", Score=supported.sites.gr$score),
-                data.frame(Evidence="Likely\n(cleanUpdTSeq)", Score=likely.sites.gr$score),
-                data.frame(Evidence="Unlikely\n(cleanUpdTSeq)", Score=unlikely.sites.gr$score))) +
+g <- rbind(data.frame(Evidence="Validated\n(GENCODE)", Score=validated.sites.gr$score),
+           data.frame(Evidence="Supported\n(PolyASite)", Score=supported.sites.gr$score),
+           data.frame(Evidence="Likely\n(cleanUpdTSeq)", Score=likely.sites.gr$score)) %>%
+    { 
+        if (length(unlikely.sites.gr) > 0) {
+            rbind(., data.frame(Evidence="Unlikely\n(cleanUpdTSeq)", Score=unlikely.sites.gr$score))
+        } else { . } 
+    } %>%
+    ggplot() +
     geom_violin(aes(Evidence, Score, fill=Evidence), draw_quantiles = c(0.025, 0.5, 0.975)) +
     scale_y_log10() + theme(legend.position="none") +
     ggtitle("Score Distributions for Mouse Cell Atlas Cleavage Sites By Evidence Level")
