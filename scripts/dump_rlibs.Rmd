@@ -1,0 +1,33 @@
+---
+title: "Record R Library Versions"
+author: "Mervin Fansler"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+# Libraries
+```{r libs, message=FALSE, warning=FALSE}
+library(Biostrings)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(cleanUpdTSeq)
+library(data.table)
+library(dplyr)
+library(GenomicFeatures)
+library(GenomicRanges)
+library(ggmosaic)
+library(ggplot2)
+library(gUtils)
+library(parallel)
+library(pbmcapply)
+library(readr)
+library(rtracklayer)
+library(scater)
+library(SingleCellExperiment)
+library(stringr)
+library(tidyverse)
+```
+
+# Session Info
+```{r sesh_info, echo=FALSE}
+sessionInfo()
+```
