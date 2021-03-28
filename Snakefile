@@ -891,3 +891,7 @@ rule kallisto_index_ercc:
         {params.kallisto} index -i {output} $TMP_FASTA
         rm -rf $TMP_FASTA
         """
+
+rule dump_rlibs:
+    output: "envs/rlibs.html"
+    script: "scripts/dump_rlibs.Rmd"
