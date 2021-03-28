@@ -256,9 +256,9 @@ rule read_distribution:
         bed = config["gencodeBED"]
     output:
         "qc/aligned/{srr}.{readtype}.read_distribution.txt"
+    conda: "envs/rseqc.min.yaml"
     shell:
         """
-        source activate py27
         read_distribution.py -i {input.bam} -r {input.bed} &> {output}
         """
 
