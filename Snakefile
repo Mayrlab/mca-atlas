@@ -90,6 +90,7 @@ rule fastqdump_sra:
         "data/fastq/raw/{srr}_2.fastq.gz"
     params:
         tmp_dir = config["tmp_dir"]
+    conda: "envs/mca.yaml"
     threads: 8
     shell:
         """
@@ -105,6 +106,7 @@ rule fastqc_raw:
     params:
         adapters = config["adaptersFile"],
         tmp_dir = config["tmp_dir"]
+    conda: "envs/mca.yaml"
     shell:
         """
         fastqc -a {params.adapters} -d {params.tmp_dir} -o qc/raw {input}
@@ -119,6 +121,7 @@ rule fastqc_clean:
     params:
         adapters = config["adaptersFile"],
         tmp_dir = config["tmp_dir"]
+    conda: "envs/mca.yaml"
     shell:
         """
         fastqc -a {params.adapters} -d {params.tmp_dir} -o qc/trimmed {input}
@@ -137,6 +140,7 @@ rule pear_merge:
         tmp_dir = config["tmp_dir"] + "/pear",
         total_mem = 32,
         min_length = 54 + 21
+    conda: "envs/mca.yaml"
     threads: 24
     log:
         "logs/pear/{srr}.log"
@@ -166,6 +170,7 @@ rule umitools_whitelist_raw:
     resources:
         mem = 16,
         walltime = 24
+    conda: "envs/mca.yaml"
     shell:
         """
         umi_tools whitelist --set-cell-number={params.cell_num} --method=umis \\
@@ -186,6 +191,7 @@ rule umitools_extract_assembled:
     resources:
         mem = 16,
         walltime = 24
+    conda: "envs/mca.yaml"
     shell:
         """
         umi_tools extract --filter-cell-barcode --error-correct-cell \\
@@ -205,6 +211,7 @@ rule umitools_extract_unassembled:
         r2 = temp("data/fastq/extracted/{srr}.unassembled_2.bx.fastq.gz")
     log:
         "logs/umi_tools/{srr}.unassembled.extract.log"
+    conda: "envs/mca.yaml"
     resources:
         mem = 16,
         walltime = 24
@@ -225,6 +232,7 @@ rule cutadapt_polyT_SE:
         "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz"
     params:
         min_length = config["minReadLength"]
+    conda: "envs/mca.yaml"
     threads: 8
     shell:
         """
@@ -242,6 +250,7 @@ rule cutadapt_polyT_PE:
         r2 = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
     params:
         min_length = config["minReadLength"]
+    conda: "envs/mca.yaml"
     threads: 8
     shell:
         """
@@ -285,6 +294,7 @@ rule hisat2_PE:
         sam = config["tmp_dir"] + "/{srr}.unassembled.sam",
         tmp_dir = config["tmp_dir"],
         idx = config['hisatIndex']
+    conda: "envs/mca.yaml"
     threads: 16
     log: "logs/hisat2/{srr}.unassembled.log"
     shell:
@@ -305,6 +315,7 @@ rule hisat2_SE:
         tmp_dir = config["tmp_dir"],
         idx = config['hisatIndex'],
         sam = config["tmp_dir"] + "/{srr}.assembled.sam"
+    conda: "envs/mca.yaml"
     threads: 16
     log: "logs/hisat2/{srr}.assembled.log"
     shell:
@@ -337,6 +348,7 @@ rule cleavage_coverage:
     output:
         neg = "data/coverage/{srr}.assembled.negative.txt.gz",
         pos = "data/coverage/{srr}.assembled.positive.txt.gz"
+    conda: "envs/mca.yaml"
     shell:
         """
         bedtools genomecov -dz -5 -strand '-' -ibam {input} | gzip > {output.neg}
@@ -350,12 +362,14 @@ rule sum_cov_adult:
     output:
         neg = "data/coverage/adult.assembled.negative.txt.gz",
         pos = "data/coverage/adult.assembled.positive.txt.gz"
+    conda: "envs/mca.yaml"
     threads: 4
     shell:
         """
         gzip -cd {input.neg} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.neg}
         gzip -cd {input.pos} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.pos}
         """
+
 rule peak_size:
     input:
         assembled="data/bam/hisat2/{srr}.assembled.bam",
@@ -368,6 +382,7 @@ rule peak_size:
         tmp_dir=config['tmp_dir'] + "/peak_cov",
         tmp1=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".assembled.txt",
         tmp2=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".unassembled.txt"
+    conda: "envs/mca.yaml"
     shell:
         """
         mkdir -p {params.tmp_dir}
@@ -436,6 +451,7 @@ rule cov_to_bed:
     wildcard_constraints:
         epsilon = "\d+",
         threshold = "\d+"
+    conda: "envs/mca.yaml"
     shell:
         """
         gzip -cd {input.neg} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > {params.raw}
@@ -558,6 +574,7 @@ rule sort_utrome:
     output:
         gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz",
         idx = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz.tbi"
+    conda: "envs/mca.yaml"
     threads: 4
     resources:
         mem = 6
@@ -615,6 +632,7 @@ rule bam_mv_bxs:
     output:
         bam = "data/bam/hisat2/{srr}.{readtype}.bxs.bam",
         idx = "data/bam/hisat2/{srr}.{readtype}.bxs.bam.bai"
+    conda: "envs/mca.yaml"
     shell:
         """
         samtools view -h {input} | awk '{ if($0 ~ "^@") {print $0} else { split($1, read_name, "_"); $1 = read_name[1]; print $0"\tCB:Z:"read_name[2]"\tRX:Z:"read_name[3]}}' | samtools view -b > {output.bam}
@@ -849,6 +867,7 @@ rule intersect_utrome_txs:
         awk="scripts/bedtools_intersect_txids.awk"
     output:
         "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.overlaps.tsv"
+    conda: "envs/mca.yaml"
     shell:
         """
         bedtools intersect -a <(awk '$3~/transcript/' {input.gtf}) -b <(awk '$3~/transcript/' {input.gtf}) -wa -wb | awk -f {input.awk} > {output}
