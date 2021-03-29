@@ -100,77 +100,84 @@ clipTranscript <- function (dt) {
     list(tx.start = tx.start, tx.end = tx.end)
 }
 
-cat(sprintf("Truncating transcripts to a max of %d nucleotides...\n", arg.txLength))
-txs.bounds.dt <- children.txs.dt[, clipTranscript(.SD), by = subject.id]
+if (arg.txLength > 0) {
+    cat(sprintf("Truncating transcripts to a max of %d nucleotides...\n", arg.txLength))
+    txs.bounds.dt <- children.txs.dt[, clipTranscript(.SD), by = subject.id]
 
-utrs.gr <- txs.gr[txs.bounds.dt$subject.id,]
-start(utrs.gr) <- txs.bounds.dt$tx.start
-end(utrs.gr) <- txs.bounds.dt$tx.end
-
-cat("Deduplicating truncated transcripts...\n")
+    utrs.gr <- txs.gr[txs.bounds.dt$subject.id,]
+    start(utrs.gr) <- txs.bounds.dt$tx.start
+    end(utrs.gr) <- txs.bounds.dt$tx.end
+} else {
+    cat("Exporting non-truncated transcripts...\n")
+    utrs.gr <- txs.gr
+}
+    
+cat("Deduplicating transcripts...\n")
 utrs.gr <- utrs.gr[!duplicated(utrs.gr),]
 
-## Remove transcripts with less than 50 nt difference
-utrs.intersect <- gr.findoverlaps(utrs.gr, utrs.gr, minoverlap = arg.txLength - 50, by = 'gene_id', ignore.strand = FALSE) %Q% (query.id < subject.id)
-utrs.intersect$nearby.start <- abs(start(utrs.gr[utrs.intersect$query.id]) - start(utrs.gr[utrs.intersect$subject.id])) < 50 
-utrs.intersect$nearby.end <- abs(end(utrs.gr[utrs.intersect$query.id]) - end(utrs.gr[utrs.intersect$subject.id])) < 50 
-utrs.intersect <- utrs.intersect[utrs.intersect$nearby.start & utrs.intersect$nearby.end]
+if (arg.txLength > 0) {
+    ## Remove transcripts with less than 50 nt difference
+    utrs.intersect <- gr.findoverlaps(utrs.gr, utrs.gr, minoverlap = arg.txLength - 50, by = 'gene_id', ignore.strand = FALSE) %Q% (query.id < subject.id)
+    utrs.intersect$nearby.start <- abs(start(utrs.gr[utrs.intersect$query.id]) - start(utrs.gr[utrs.intersect$subject.id])) < 50 
+    utrs.intersect$nearby.end <- abs(end(utrs.gr[utrs.intersect$query.id]) - end(utrs.gr[utrs.intersect$subject.id])) < 50 
+    utrs.intersect <- utrs.intersect[utrs.intersect$nearby.start & utrs.intersect$nearby.end]
 
-is.augmented <- function (gr) {
-    str_detect(gr$transcript_id, '(-|\\+)[0-9]+')
+    is.augmented <- function (gr) {
+        str_detect(gr$transcript_id, '(-|\\+)[0-9]+')
+    }
+
+    ## First, remove all de novo sites that are near GENCODE sites
+    utrs.intersect$augmented.subject <- is.augmented(utrs.gr[utrs.intersect$subject.id])
+    utrs.intersect$augmented.query <- is.augmented(utrs.gr[utrs.intersect$query.id])
+    utrs.removable <- utrs.intersect %Q% xor(augmented.subject, augmented.query)
+    
+    ids.toRemove <- c(utrs.removable$subject.id[utrs.removable$augmented.subject],
+                      utrs.removable$query.id[utrs.removable$augmented.query])
+    
+    utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
+    
+    ## Second, for de novo sites, favor the one with smaller augmentation size
+    utrs.denovo <- utrs.intersect %Q% (augmented.subject & augmented.query)
+    utrs.denovo$pos.subject <- as.numeric(str_replace(utrs.gr$transcript_id[utrs.denovo$subject.id], ".*(-|\\+)(\\d+)$", "\\2"))
+    utrs.denovo$pos.query <- as.numeric(str_replace(utrs.gr$transcript_id[utrs.denovo$query.id], ".*(-|\\+)(\\d+)$", "\\2"))
+    
+    ids.toRemove <- unique(c(ids.toRemove,
+                             utrs.denovo$subject.id[utrs.denovo$pos.subject > utrs.denovo$pos.query],
+                             utrs.denovo$query.id[utrs.denovo$pos.subject < utrs.denovo$pos.query]))
+    
+    utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
+    
+    ## Third, for GENCODE-GENCODE, favor HAVANA (manually annotated) over ENSEMBL (automated pipeline)
+    utrs.sources <- data.frame(query.id = utrs.intersect$query.id, subject.id = utrs.intersect$subject.id,
+                               query.source = utrs.gr$source[utrs.intersect$query.id], subject.source = utrs.gr$source[utrs.intersect$subject.id])
+    ids.toRemove <- unique(c(ids.toRemove,
+                             utrs.sources$query.id[utrs.sources$subject.source == "HAVANA" & utrs.sources$query.source == "ENSEMBL"],
+                             utrs.sources$subject.id[utrs.sources$query.source == "HAVANA" & utrs.sources$subject.source == "ENSEMBL"]))
+    
+    utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
+    
+    ## Fourth, for GENCODE-GENCODE, favor more downstream end sites
+    utrs.intersect$match.end <- end(gr.end(utrs.gr[utrs.intersect$subject.id], ignore.strand=FALSE)) == end(gr.end(utrs.gr[utrs.intersect$query.id], ignore.strand=FALSE))
+    utrs.intersect.unmatched.pos <- utrs.intersect %Q% (!match.end & strand == '+')
+    utrs.intersect.unmatched.neg <- utrs.intersect %Q% (!match.end & strand == '-')
+    
+    ids.toRemove <- unique(c(ids.toRemove,
+                             ifelse(end(utrs.gr[utrs.intersect.unmatched.pos$query.id]) > end(utrs.gr[utrs.intersect.unmatched.pos$subject.id]),
+                                    utrs.intersect.unmatched.pos$subject.id, utrs.intersect.unmatched.pos$query.id),
+                             ifelse(start(utrs.gr[utrs.intersect.unmatched.neg$query.id]) < start(utrs.gr[utrs.intersect.unmatched.neg$subject.id]),
+                                    utrs.intersect.unmatched.neg$subject.id, utrs.intersect.unmatched.neg$query.id)))
+    
+    utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
+    
+    ## Finally, for GENCODE-GENCODE with identical spans, keep the transcripts that were discovered earlier
+    ids.toRemove <- unique(c(ids.toRemove,
+                             ifelse(utrs.gr$transcript_name[utrs.intersect$subject.id] < utrs.gr$transcript_name[utrs.intersect$query.id], utrs.intersect$query.id, utrs.intersect$subject.id)))
+    
+    stopifnot(length(utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]) == 0)
+    
+    ## Remove all high overlapping transcripts from utrs.gr
+    utrs.gr <- utrs.gr[-ids.toRemove]
 }
-
-## First, remove all de novo sites that are near GENCODE sites
-utrs.intersect$augmented.subject <- is.augmented(utrs.gr[utrs.intersect$subject.id])
-utrs.intersect$augmented.query <- is.augmented(utrs.gr[utrs.intersect$query.id])
-utrs.removable <- utrs.intersect %Q% xor(augmented.subject, augmented.query)
-
-ids.toRemove <- c(utrs.removable$subject.id[utrs.removable$augmented.subject],
-                  utrs.removable$query.id[utrs.removable$augmented.query])
-
-utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
-
-## Second, for de novo sites, favor the one with smaller augmentation size
-utrs.denovo <- utrs.intersect %Q% (augmented.subject & augmented.query)
-utrs.denovo$pos.subject <- as.numeric(str_replace(utrs.gr$transcript_id[utrs.denovo$subject.id], ".*(-|\\+)(\\d+)$", "\\2"))
-utrs.denovo$pos.query <- as.numeric(str_replace(utrs.gr$transcript_id[utrs.denovo$query.id], ".*(-|\\+)(\\d+)$", "\\2"))
-
-ids.toRemove <- unique(c(ids.toRemove,
-                         utrs.denovo$subject.id[utrs.denovo$pos.subject > utrs.denovo$pos.query],
-                         utrs.denovo$query.id[utrs.denovo$pos.subject < utrs.denovo$pos.query]))
-
-utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
-
-## Third, for GENCODE-GENCODE, favor HAVANA (manually annotated) over ENSEMBL (automated pipeline)
-utrs.sources <- data.frame(query.id = utrs.intersect$query.id, subject.id = utrs.intersect$subject.id,
-                           query.source = utrs.gr$source[utrs.intersect$query.id], subject.source = utrs.gr$source[utrs.intersect$subject.id])
-ids.toRemove <- unique(c(ids.toRemove,
-                         utrs.sources$query.id[utrs.sources$subject.source == "HAVANA" & utrs.sources$query.source == "ENSEMBL"],
-                         utrs.sources$subject.id[utrs.sources$query.source == "HAVANA" & utrs.sources$subject.source == "ENSEMBL"]))
-
-utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
-
-## Fourth, for GENCODE-GENCODE, favor more downstream end sites
-utrs.intersect$match.end <- end(gr.end(utrs.gr[utrs.intersect$subject.id], ignore.strand=FALSE)) == end(gr.end(utrs.gr[utrs.intersect$query.id], ignore.strand=FALSE))
-utrs.intersect.unmatched.pos <- utrs.intersect %Q% (!match.end & strand == '+')
-utrs.intersect.unmatched.neg <- utrs.intersect %Q% (!match.end & strand == '-')
-
-ids.toRemove <- unique(c(ids.toRemove,
-                         ifelse(end(utrs.gr[utrs.intersect.unmatched.pos$query.id]) > end(utrs.gr[utrs.intersect.unmatched.pos$subject.id]),
-                                utrs.intersect.unmatched.pos$subject.id, utrs.intersect.unmatched.pos$query.id),
-                         ifelse(start(utrs.gr[utrs.intersect.unmatched.neg$query.id]) < start(utrs.gr[utrs.intersect.unmatched.neg$subject.id]),
-                                utrs.intersect.unmatched.neg$subject.id, utrs.intersect.unmatched.neg$query.id)))
-
-utrs.intersect <- utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]
-
-## Finally, for GENCODE-GENCODE with identical spans, keep the transcripts that were discovered earlier
-ids.toRemove <- unique(c(ids.toRemove,
-                         ifelse(utrs.gr$transcript_name[utrs.intersect$subject.id] < utrs.gr$transcript_name[utrs.intersect$query.id], utrs.intersect$query.id, utrs.intersect$subject.id)))
-
-stopifnot(length(utrs.intersect[!(utrs.intersect$subject.id %in% ids.toRemove | utrs.intersect$query.id %in% ids.toRemove)]) == 0)
-
-## Remove all high overlapping transcripts from utrs.gr
-utrs.gr <- utrs.gr[-ids.toRemove]
 
 ## Generate UTR names by UTR position in gene
 utrs.dt <- data.table(start = start(utrs.gr), end = end(utrs.gr), strand = as.character(strand(utrs.gr)), gene = utrs.gr$gene_name, tx_id = utrs.gr$transcript_id)

@@ -620,7 +620,7 @@ rule kallisto_index:
     params:
         kallisto=config["kallistoBin"]
     resources:
-        mem=2
+        mem=8
     shell:
         """
         {params.kallisto} index -i {output} {input}
