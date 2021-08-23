@@ -895,3 +895,41 @@ rule kallisto_index_ercc:
 rule dump_rlibs:
     output: "envs/rlibs.html"
     script: "scripts/dump_rlibs.Rmd"
+
+rule summarize_polyasite:
+    input:
+        pas=config['polyASiteBED'],
+        gencode=config['gencodeSortedGFF']
+    output:
+        "output/polyASite/summary.html"
+    params:
+        genome='mm10',
+        extUpstream="1000",
+        extDownstream="5000"
+    script:
+        "scripts/summarize_polyasite.Rmd"
+
+rule hisat2_PE_raw:
+    input:
+        r1 = "data/fastq/raw/{srr}_1.fastq.gz",
+        r2 = "data/fastq/raw/{srr}_2.fastq.gz"
+    output:
+        bam = "data/bam/hisat2/{srr}.raw.bam",
+        bai = "data/bam/hisat2/{srr}.raw.bam.bai"
+    params:
+        sam = config["tmp_dir"] + "/{srr}.raw.sam",
+        tmp_dir = config["tmp_dir"],
+        idx = config['hisatIndex']
+    conda: "envs/mca.yaml"
+    log: "logs/hisat2/{srr}.raw.log"
+    threads: 20
+    resources:
+        mem=4
+    shell:
+        """
+        mkdir -p {params.tmp_dir}
+        hisat2 -p {threads} -x {params.idx} -1 {input.r1} -2 {input.r2} -S {params.sam} --new-summary --summary-file {log}
+        samtools sort -@ {threads} -m 3G -T {params.tmp_dir}/ -o {output.bam} {params.sam}
+        samtools index -@ {threads} {output.bam}
+        rm -f {params.sam}
+        """

@@ -80,10 +80,11 @@ while (nrow(remapped.dt[subject.id %in% query.id]) > 0) {
 ## otherwise, map to itself
 df.txmap <- bind_rows(
     tibble(tx_in=mcols(txs.ends.gr)[remapped.dt$query.id, 'transcript_id'],
-           tx_out=mcols(txs.ends.gr)[remapped.dt$subject.id, 'transcript_id']),
+           tx_out=mcols(txs.ends.gr)[remapped.dt$subject.id, 'transcript_id'],
+           gene_out=mcols(txs.ends.gr)[remapped.dt$subject.id, 'gene_id']),
     tibble(tx_in=mcols(txs.ends.gr)[-remapped.dt$query.id, 'transcript_id'],
-           tx_out=mcols(txs.ends.gr)[-remapped.dt$query.id, 'transcript_id'])) %>%
-    arrange(-desc(tx_in)) %>%
-    mutate(gene_symbol=str_match(tx_out, "(^.*)\\.\\d+$")[,2])
+           tx_out=mcols(txs.ends.gr)[-remapped.dt$query.id, 'transcript_id'],
+           gene_out=mcols(txs.ends.gr)[-remapped.dt$query.id, 'gene_id'])) %>%
+    arrange(-desc(tx_in))
 
 write_tsv(df.txmap, arg.outFile)

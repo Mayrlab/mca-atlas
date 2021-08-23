@@ -1,4 +1,4 @@
-#!/home/fanslerm/software/miniconda3/bin/python
+#!/usr/bin/env python
 import os
 import sys
 
@@ -28,7 +28,7 @@ os.makedirs("logs/lsf/%s" % rule_name, exist_ok=True)
 stdlog = "logs/lsf/{}/%J.stdout".format(rule_name)
 errlog = "logs/lsf/{}/%J.err".format(rule_name)
 
-cmd_str = 'bsub -q {queue} -n {threads} -R"span[hosts=1] rusage[mem={mem}]" -W {walltime}:00 -o {stdlog} -e {errlog} -J {job_name} {script}'.format(
+cmd_str = 'bsub -q {queue} -n {threads} -R"span[hosts=1] rusage[mem={mem}]" -R fscratch -W {walltime}:00 -o {stdlog} -e {errlog} -J {job_name} {script}'.format(
     queue=queue, threads=threads, mem=mem, walltime=walltime, stdlog=stdlog, errlog=errlog, script=job_script, job_name=rule_name)
 
 print("System call:\n>%s" % cmd_str)
