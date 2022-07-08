@@ -18,5 +18,5 @@ Additional parameters are encoded in the filename:
 
  - **epsilon (e):** distance for initial merging of cleavage sites
  - **threshold (t):** minimum number of supporting reads
- - **non-internal priming likelihood (f):** minimum posterior likelihood of being an internal priming site
+ - **non-internal priming likelihood (f):** minimum posterior likelihood for not being an internal priming site
  - **truncation width (w):** maximum transcript distance to cleavage site
