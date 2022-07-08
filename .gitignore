@@ -1,0 +1,11 @@
+*~
+.RData
+.Rhistory
+*.DS_Store
+.snakemake
+qc/utrome/*
+qc/*
+logs/*
+scratch/
+igv/
+data
