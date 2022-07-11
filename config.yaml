@@ -2,13 +2,13 @@ tmp_dir:
   "/fscratch/fanslerm"
 
 annotationFile:
-  "data/cell-ann.csv"
+  "metadata/cell-ann.csv.gz"
 
 sampleBatchFile:
-  "data/sample_batch.txt"
+  "metadata/sample_batch.txt"
 
 metadataFile:
-  "data/SRP126776.run_table.tsv"
+  "metadata/SRP126776.run_table.tsv"
 
 gencodeGFF:
   "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
