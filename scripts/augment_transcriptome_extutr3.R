@@ -14,11 +14,11 @@ if (interactive()) {
                                                wildcards='list',
                                                params='list', threads='numeric'))
     snakemake <- Snakemake(
-        input=list(extutr3="data/bed/cleavage-sites/utrome.extutr3.e3.t200.gc39.pas3.f0.9999.bed.gz",
-                   gencode="data/gff/gencode.v39.mRNA_ends_found.gff3.gz"),
-        output=list(gff="data/gff/txs.extutr3.e3.t200.gc39.pas3.f0.9999.gff3.gz",
-                    gtf="data/gff/txs.extutr3.e3.t200.gc39.pas3.f0.9999.gtf.gz"),
-        wildcards=list(epsilon="3", threshold="200", version="39", tpm="3", likelihood="0.9999"),
+        input=list(extutr3="data/bed/cleavage-sites/utrome.extutr3.e30.t5.gc25.pas3.f0.9999.bed.gz",
+                   gencode="data/gff/gencode.vM25.mRNA_ends_found.gff3.gz"),
+        output=list(gff="data/gff/txs.extutr3.e30.t5.gc25.pas3.f0.9999.gff3.gz",
+                    gtf="data/gff/txs.extutr3.e30.t5.gc25.pas3.f0.9999.gtf.gz"),
+        wildcards=list(epsilon="30", threshold="5", version="25", tpm="3", likelihood="0.9999"),
         params=list(ext_utr3="5000"),
         threads=3
         )
@@ -86,7 +86,8 @@ gr_exons <- gr_gencode %>%
     ## include copy of exon for every transcript
     expand(colnames=c("Parent")) %>%
     ## only consider exons from new parents
-    filter(Parent %in% gr_txs_new$transcript_id_old) 
+    filter(type == 'exon',
+           Parent %in% gr_txs_new$transcript_id_old) 
 
 ## discard unused objects
 rm(list=c("gr_gencode", "gr_txs", "gr_downstream", "gr_overlaps"))
