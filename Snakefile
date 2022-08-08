@@ -116,10 +116,10 @@ rule download_polyASite_atlas:
 
 rule download_gencode_gff:
     output:
-        gff="data/gff/gencode.v{version}.annotation.gff3.gz"
+        gff="data/gff/gencode.vM{version}.annotation.gff3.gz"
     params:
         url_base="ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/",
-        url_file=lambda wcs: "release_%s/gencode.vM%s.annotation.gff3.gz" % (wcs.version, wcs.version)
+        url_file=lambda wcs: "release_M%s/gencode.vM%s.annotation.gff3.gz" % (wcs.version, wcs.version)
     wildcard_constraints:
         version='\d+'
     shell:
@@ -129,10 +129,10 @@ rule download_gencode_gff:
 
 rule filter_gencode_mRNA_ends:
     input:
-        gff="data/gff/gencode.v{version}.annotation.gff3.gz"
+        gff="data/gff/gencode.vM{version}.annotation.gff3.gz"
     output:
-        gff="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz",
-        tbi="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz.tbi"
+        gff="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz",
+        tbi="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz.tbi"
     wildcard_constraints:
         version='\d+'
     conda: "envs/bedtools.yaml"
@@ -186,7 +186,7 @@ rule extract_whitelist:
     shell:
         """
         gzip -cd {input.tsv} |\\
-          awk '{{ if ($2 ~ /^{wildcards.sample_id}$/) print $3 }}' > {output.txt}
+          awk -v FS=',' '{{ if ($2 ~ /^{wildcards.sample_id}$/) print $3 }}' > {output.txt}
         """
 
 rule umitools_extract_assembled:
@@ -285,7 +285,7 @@ rule extract_celltype_sample_bxs:
     shell:
         """
         gzip -cd {input.tsv} |\\
-          awk '{{ if ($2 ~ /^{wildcards.sample_id}$/ && $7 ~ /^{wildcards.cluster_id}$/) print $3 }}' > {output.bxs}
+          awk -v FS=',' '{{ if ($2 ~ /^{wildcards.sample_id}$/ && $6 ~ /^{wildcards.cluster_id}$/) print $3 }}' > {output.bxs}
         """
 
 rule filter_celltype_sample:
@@ -526,7 +526,7 @@ rule cleanUpdTSeq_filter:
 rule filter_validated_sites:
     input:
         bed_all="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         validated="data/bed/cleavage-sites/utrome.validated.e{epsilon}.t{threshold}.gc{version}.bed.gz",
         unvalidated="data/bed/cleavage-sites/utrome.unvalidated.e{epsilon}.t{threshold}.gc{version}.bed.gz"
@@ -579,7 +579,7 @@ rule export_cleavage_sites:
     input:
         supported="data/bed/cleavage-sites/utrome.supported.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.bed.gz",
         likely="data/bed/cleavage-sites/utrome.likely.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         utr3="data/bed/cleavage-sites/utrome.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
         extutr3="data/bed/cleavage-sites/utrome.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz"
@@ -599,7 +599,7 @@ rule export_cleavage_sites:
 rule augment_transcriptome_utr3:
     input:
         utr3="data/bed/cleavage-sites/utrome.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         gff="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
         gtf="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gtf.gz"
@@ -617,7 +617,7 @@ rule augment_transcriptome_utr3:
 rule augment_transcriptome_extutr3:
     input:
         extutr3="data/bed/cleavage-sites/utrome.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         gff="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
         gtf="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gtf.gz"
@@ -638,7 +638,7 @@ rule create_chunked_granges:
     input:
         utr3="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
         extutr3="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         positive="data/granges/augmented.positive.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds",
         negative="data/granges/augmented.negative.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds",
@@ -757,7 +757,7 @@ rule export_merge_table:
 rule export_intronic_sites:
     input:
         utrome="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.gtf.gz",
-        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+        gencode="data/gff/gencode.vM{version}.mRNA_ends_found.gff3.gz"
     output:
         tsv="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.ipa.tsv"
     conda: "envs/bioc_3_14.yaml"
