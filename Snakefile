@@ -1,101 +1,781 @@
+#!/usr/bin env snakemake --snakefile
+
 configfile: "config.yaml"
 
 wildcard_constraints:
     srr="SRR\d+"
 
-shell.prefix("source ~/.bashrc; ")
-    
 import pandas as pd
+from sys import stderr
 import os
 
-# make sure the tmp directory exists
-os.makedirs(config["tmp_dir"], exist_ok=True)
+# print to stderr
+def message(*args, **kwargs):
+    print(*args, file=stderr, **kwargs)
+    
+# ensure tmpdir exists
+os.makedirs(config['tmpdir'], exist_ok=True)
 
-print("Loading annotation data...")
-annotations = pd.read_csv(config["annotationFile"])
 
-metadata = pd.read_table(config["metadataFile"], usecols=["Run", "Sample_Name", "tissue"])
-metadata["tissue_srr"] = metadata.tissue.map(str) + "." + metadata.Run
+message("[INFO] Loading metadata...")
+metadata = pd.read_csv(config['metadataFile'], index_col="sample_id")
+message("[INFO] Found %d SRA runs." % len(metadata.index))
 
-sample_batch = pd.read_table(config["sampleBatchFile"])
-metadata = pd.merge(metadata, sample_batch, on = "Sample_Name")
+message("[INFO] Loading samples list...")
+samples_subset = metadata.index.tolist()
+message("[INFO] Found %d sample IDs." % len(samples_subset))
 
-annotations = pd.merge(annotations, metadata, on = "Batch")
+message("[INFO] Loading celltypes-samples list...")
+celltype_sample_map = pd.read_csv(config['celltypesSamplesFile'])
+message("[INFO] Found %d celltypes." % celltype_sample_map.celltype_id.nunique())
+message("[INFO] Found %d celltype-sample pairs." % len(celltype_sample_map))
 
-print("Loaded annotations for %d cells from %d libraries and %d tissues, comprising %d clusters." % (
-    len(annotations), len(annotations.Batch.unique()), len(annotations.Tissue.unique()), len(annotations.ClusterID.unique())))
 
-adults = [
-    '8-10 week-old male mice',
-    ' 6-10 week-old female mice',
-    '8-11 week-old male mice']
-
-adultAnnotations = annotations.loc[annotations["Mouse-Sex-Age"].isin(adults)]
-adultSRRs = adultAnnotations.Run.unique()
-
-print("This included:\n\t%d adult cells from %d libraries and %d tissues, comprising %d clusters;" % (
-    len(adultAnnotations), len(adultAnnotations.Batch.unique()), len(adultAnnotations.Tissue.unique()), len(adultAnnotations.ClusterID.unique())))
-
-neonatalAnnotations = annotations.loc[annotations["Mouse-Sex-Age"] == " 1 day-old pups "]
-
-print("\t%d neonatal cells from %d libraries and %d tissues, comprising %d clusters." % (
-    len(neonatalAnnotations), len(neonatalAnnotations.Batch.unique()), len(neonatalAnnotations.Tissue.unique()), len(neonatalAnnotations.ClusterID.unique())))
-
-embryonicAnnotations = annotations.loc[annotations["Mouse-Sex-Age"] == "E14.5 embryos"]
-
-print("\t%d embryonic cells from %d libraries and %d tissues, comprising %d clusters." % (
-    len(embryonicAnnotations), len(embryonicAnnotations.Batch.unique()), len(embryonicAnnotations.Tissue.unique()), len(embryonicAnnotations.ClusterID.unique())))
-
-stemCells = [
-    'E14 cell line ',
-    ' Mesenchymal stem cell line',
-    'Trophoblast stem cell line']
-
-stemCellAnnotations = annotations.loc[annotations["Mouse-Sex-Age"].isin(stemCells)]
-
-print("\t%d stem cells from %d libraries and %d tissues, comprising %d clusters." % (
-    len(stemCellAnnotations), len(stemCellAnnotations.Batch.unique()), len(stemCellAnnotations.Tissue.unique()), len(stemCellAnnotations.ClusterID.unique())))
-
-workingSRRs = adultSRRs # config["immuneSRRs"]
+EPSILON = list(config['epsilon'])
+THRESHOLD = list(config['threshold'])
+GC_VERSION = list(config['gencodeVersion'])
+PAS_TPM = list(config['polyASiteTPM'])
+LIKELIHOOD = list(config['minLikelihood'])
+WIDTH = list(config['width'])
+MERGE = list(config['mergeDistance'])
+             
 
 rule all:
     input:
-        expand("qc/raw/{srr}_{read}_fastqc.html", srr = workingSRRs, read = [1,2]),
-        expand("data/fastq/assembled/{srr}.assembled.fastq.gz", srr = workingSRRs),
-        expand("qc/trimmed/{srr}.{readtype}.clean_fastqc.html", srr = workingSRRs, readtype = ["assembled", "unassembled_1", "unassembled_2"]),
-        expand("output/read_distribution/{tissue_srr}.{readtype}.png",
-               tissue_srr = metadata.loc[metadata["Run"].isin(workingSRRs), "tissue_srr"], readtype = ["assembled", "unassembled"]),
-        expand("output/read_distribution/MouseCellAtlas.AdultTissues.{readtype}.png", readtype = ["assembled", "unassembled"]),
-        expand("data/coverage/adult.assembled.{strand}.txt.gz", strand=['positive', 'negative'])
-               
+        expand("data/bigwig/celltypes/{celltype_id}.positive.bw",
+               celltype_id=list(celltype_sample_map.celltype_id.unique())),
+        expand("data/bed/celltypes/celltypes.e{epsilon}.t{threshold}.bed.gz",
+               epsilon=EPSILON, threshold=THRESHOLD),
+        expand("data/kdx/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.kdx",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH),
+        expand("data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.m{merge}.tsv",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH, merge=MERGE),
+        expand("data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.ipa.tsv",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH),
+        expand("qc/coverage/celltypes_all_sites.e{epsilon}.csv", epsilon=EPSILON),
+        expand("qc/coverage/celltypes_passing_sites.e{epsilon}.t{threshold}.csv",
+               epsilon=EPSILON, threshold=THRESHOLD),
+        expand("qc/coverage/utrome_{status}_sites.e{epsilon}.t{threshold}.csv",
+               status=["merged", "unmerged"], epsilon=EPSILON, threshold=THRESHOLD),
+        expand("qc/gff/utrome.site_types.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.csv",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH),
+        expand("qc/gff/utrome.utrs_per_gene.unmerged.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.m{merge}.csv",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH, merge=MERGE),
+        expand("qc/gff/utrome.merged_lengths.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.m{merge}.tsv.gz",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH, merge=MERGE),
+        expand("data/granges/utrome_gr_txs.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds",
+               epsilon=EPSILON, threshold=THRESHOLD, version=GC_VERSION,
+               tpm=PAS_TPM, likelihood=LIKELIHOOD, width=WIDTH, merge=MERGE)
 
-rule download:
-    output:
-        temp("data/sra/{srr}.sra")
-    params:
-        ftpbase = "anonftp@ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/SRR",
-        filepath = lambda wcs: "{srr6}/{srr}/{srr}.sra".format(srr6 = wcs.srr[0:6], srr = wcs.srr),
-        bitrate = "1000m",
-        sshkey = config["ascpKeyFile"]
-    shell:
-        """
-        ascp -i {params.sshkey} -k 2 -T -l{params.bitrate} {params.ftpbase}/{params.filepath} {output}
-        """
 
-rule fastqdump_sra:
-    input:
-        "data/sra/{srr}.sra"
+################################################################################
+## DOWNLOADING & PREPROCESSING
+################################################################################
+
+rule download_fastq:
     output:
-        "data/fastq/raw/{srr}_1.fastq.gz",
-        "data/fastq/raw/{srr}_2.fastq.gz"
+        r1=temp("data/fastq/raw/{sample_id}_R1.fastq.gz"),
+        r2=temp("data/fastq/raw/{sample_id}_R2.fastq.gz")
     params:
-        tmp_dir = config["tmp_dir"]
-    conda: "envs/mca.yaml"
+        srr=lambda wcs: metadata.srr[wcs.sample_id],
+        tmpdir=config['tmpdir']
+    conda: "envs/sratools.yaml"
     threads: 8
     shell:
         """
-        parallel-fastq-dump -s {input} -t {threads} -O data/fastq/raw --tmpdir {params.tmp_dir} --split-files --gzip
+        ## expected output files
+        tmp_r1="{params.tmpdir}/{params.srr}_1.fastq"
+        tmp_r2="{params.tmpdir}/{params.srr}_2.fastq"
+        
+        ## dump raw fastq
+        fasterq-dump -e {threads} -O {params.tmpdir} -t {params.tmpdir} -sS {params.srr}
+        
+        ## compress
+        bgzip -@ {threads} -c $tmp_r1 > {output.r1}
+        bgzip -@ {threads} -c $tmp_r2 > {output.r2}
+
+        ## clean up
+        rm $tmp_r1 $tmp_r2
         """
+
+rule download_polyASite_atlas:
+    output:
+        atlas="data/cleavage-sites/polyAsite.atlas.tsv.gz"
+    params:
+        url="https://polyasite.unibas.ch/download/atlas/2.0/GRCm38.96/atlas.clusters.2.0.GRCm38.96.tsv.gz"
+    shell:
+        """
+        wget -O {output.atlas} '{params.url}'
+        """
+
+rule download_gencode_gff:
+    output:
+        gff="data/gff/gencode.v{version}.annotation.gff3.gz"
+    params:
+        url_base="ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/",
+        url_file=lambda wcs: "release_%s/gencode.vM%s.annotation.gff3.gz" % (wcs.version, wcs.version)
+    wildcard_constraints:
+        version='\d+'
+    shell:
+        """
+        wget -O {output.gff} '{params.url_base}{params.url_file}'
+        """
+
+rule filter_gencode_mRNA_ends:
+    input:
+        gff="data/gff/gencode.v{version}.annotation.gff3.gz"
+    output:
+        gff="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz",
+        tbi="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz.tbi"
+    wildcard_constraints:
+        version='\d+'
+    conda: "envs/bedtools.yaml"
+    threads: 4
+    shell:
+        """
+        bgzip -cd {input.gff} |\\
+          awk '$0 !~ /^#/' |\\
+          awk '$0 !~ /mRNA_end_NF/' |\\
+          sort --parallel={threads} -S4G -k1,1 -k4,4n |\\
+          bgzip -@ {threads} -c > {output.gff}
+
+        tabix {output.gff}
+        """
+        
+
+################################################################################
+## PROCESSING
+################################################################################
+
+rule pear_merge:
+    input:
+        r1="data/fastq/raw/{sample_id}_R1.fastq.gz",
+        r2="data/fastq/raw/{sample_id}_R2.fastq.gz"
+    output:
+        r12="data/fastq/assembled/{sample_id}.assembled.fastq.gz"
+    params:
+        tmpdir=config['tmpdir'] + "/pear",
+        min_length=54+21,
+        max_pval=0.0001
+    conda: "envs/pear.yaml"
+    threads: 12
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        mkdir -p {params.tmpdir}
+        pear -j {threads} \\
+          -n {params.min_length} -p {params.max_pval} \\
+          -f {input.r1} -r {input.r2} \\
+          -o {params.tmpdir}/{wildcards.sample_id}
+        bgzip -@ {threads} -c {params.tmpdir}/{wildcards.sample_id}.assembled.fastq > {output.r12}
+        rm {params.tmpdir}/{wildcards.sample_id}.*.fastq
+        """
+
+rule extract_whitelist:
+    input:
+        tsv=config['annotsFile']
+    output:
+        txt="data/barcodes/{sample_id}.whitelist.txt"
+    shell:
+        """
+        gzip -cd {input.tsv} |\\
+          awk '{{ if ($2 ~ /^{wildcards.sample_id}$/) print $3 }}' > {output.txt}
+        """
+
+rule umitools_extract_assembled:
+    input:
+        bx="data/barcodes/{sample_id}.whitelist.txt",
+        fq="data/fastq/assembled/{sample_id}.assembled.fastq.gz"
+    output:
+        temp("data/fastq/extracted/{sample_id}.assembled.bx.fastq.gz")
+    resources:
+        mem_mb=16000
+    conda: "envs/umitools.yaml"
+    shell:
+        """
+        umi_tools extract \\
+          --filter-cell-barcode \\
+          --extract-method=regex \\
+          --bc-pattern='(?P<cell_1>.{{6}})(?P<discard_1>CGACTCACTACAGGG){{s<=1}}(?P<cell_2>.{{6}})(?P<discard_2>TCGGTGACACGATCG){{s<=1}}(?P<cell_3>.{{6}})(?P<umi_1>.{{6}})(T{{12}}){{s<=2}}.*' \\
+          --whitelist={input.bx} \\
+          --stdin={input.fq} \\
+          --stdout={output}
+        """
+
+## NB: We found that trimming with errors (-e != 0) results in frequently
+## removing templated portions of transcript ends. The following strategy
+## removes all bases that are 5' (in the read) upstream of any consecutive
+## T of at least 12 or more. This could be further tuned, but we it both
+## prevents over trimming and mostly removes non-templated Ts.
+rule cutadapt_polyT_SE:
+    input:
+        "data/fastq/extracted/{sample_id}.assembled.bx.fastq.gz"
+    output:
+        "data/fastq/trimmed/{sample_id}.assembled.clean.fastq.gz"
+    params:
+        min_length=config['minReadLength']
+    conda: "envs/cutadapt.yaml"
+    threads: 8
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        cutadapt --cores={threads} \\
+        --front='T{{100}}' -g='T{{12}}' -n 10 -e 0 \\
+        --minimum-length={params.min_length} --length-tag='length=' \\
+        --output={output} {input}
+        """
+
+rule hisat2_SE:
+    input:
+        "data/fastq/trimmed/{sample_id}.assembled.clean.fastq.gz"
+    output:
+        bam="data/bam/samples/{sample_id}.assembled.bam",
+        log="qc/hisat2/{sample_id}.assembled.log"
+    params:
+        tmpdir=config['tmpdir'],
+        idx=config['hisatIndex'],
+        sam=config['tmpdir'] + "/{sample_id}.assembled.sam"
+    conda: "envs/hisat2.yaml"
+    threads: 16
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        hisat2 -p {threads} -x {params.idx} \\
+          -U {input} -S {params.sam} \\
+          --rna-strandness R \\
+          --new-summary --summary-file {output.log}
+        samtools sort -@ {threads} -T {params.tmpdir}/ -o {output.bam} {params.sam}
+        rm -f {params.sam}
+        """
+
+rule tag_bx_umi:
+    input:
+        bam="data/bam/samples/{sample_id}.assembled.bam",
+        script="scripts/tag_bx_umi.awk"
+    output:
+        bam="data/bam/samples/{sample_id}.tagged.bam",
+        bai="data/bam/samples/{sample_id}.tagged.bam.bai"
+    conda: "envs/hisat2.yaml"
+    shell:
+        """
+        samtools view -h {input.bam} |\\
+          awk -f {input.script} |\\
+          samtools view -b > {output.bam}
+        samtools index {output.bam}
+        """
+
+rule extract_celltype_sample_bxs:
+    input:
+        tsv=config['annotsFile']
+    output:
+        bxs="data/barcodes/celltypes/{cluster_id}-{celltype}/{cluster_id}-{celltype}.{sample_id}.bxs.txt"
+    wildcard_constraints:
+        cluster_id="\d+",
+        celltype="[^.]+",
+        sample_id="[^.]+(\.\d+)?"
+    shell:
+        """
+        gzip -cd {input.tsv} |\\
+          awk '{{ if ($2 ~ /^{wildcards.sample_id}$/ && $7 ~ /^{wildcards.cluster_id}$/) print $3 }}' > {output.bxs}
+        """
+
+rule filter_celltype_sample:
+    input:
+        bam="data/bam/samples/{sample_id}.tagged.bam",
+        bxs="data/barcodes/celltypes/{cluster_id}-{celltype}/{cluster_id}-{celltype}.{sample_id}.bxs.txt"
+    output:
+        bam=temp("data/bam/celltypes/{cluster_id}-{celltype}/{cluster_id}-{celltype}.{sample_id}.bam")
+    wildcard_constraints:
+        cluster_id="\d+",
+        celltype="[^.]+",
+        sample_id="[^.]+(\.\d+)?"
+    conda: "envs/hisat2.yaml"
+    shell:
+        """
+        samtools view -D CB:{input.bxs} -o {output.bam} {input.bam}
+        """
+
+def get_celltype_samples (wcs):
+    return expand("data/bam/celltypes/{celltype_id}/{celltype_id}.{sample_id}.bam",
+                  celltype_id=wcs.celltype_id,
+                  sample_id=celltype_sample_map.sample_id[celltype_sample_map.celltype_id == wcs.celltype_id])
+    
+rule merge_celltype_samples:
+    input:
+        bams=get_celltype_samples
+    output:
+        bam="data/bam/celltypes/{celltype_id}.bam",
+        bai="data/bam/celltypes/{celltype_id}.bam.bai"
+    wildcard_constraints:
+        celltype_id="\d+-[^.]+"
+    conda: "envs/hisat2.yaml"
+    shell:
+        """
+        samtools merge -o {output.bam} {input.bams}
+        samtools index {output.bam}
+        """
+
+rule bam_to_bigwig:
+    input:
+        bam="data/bam/celltypes/{celltype_id}.bam",
+        chr_sizes=config['chromSizes']
+    output:
+        bg_pos="data/bedgraph/celltypes/{celltype_id}.positive.bedgraph",
+        bw_pos="data/bigwig/celltypes/{celltype_id}.positive.bw",
+        bg_neg="data/bedgraph/celltypes/{celltype_id}.negative.bedgraph",
+        bw_neg="data/bigwig/celltypes/{celltype_id}.negative.bw"
+    conda: "envs/bedtools.yaml"
+    shell:
+        """
+        scale=$(samtools idxstats {input.bam} | awk '{{ sum += $3 }} END {{ print 1000000 / sum }}')
+        bedtools genomecov -ibam {input.bam} -strand '+' -bg -scale ${{scale}} -split |\\
+          sort -k1,1 -k2,2n > {output.bg_pos}
+        bedGraphToBigWig {output.bg_pos} {input.chr_sizes} {output.bw_pos}
+        bedtools genomecov -ibam {input.bam} -strand '-' -bg -scale ${{scale}} -split |\\
+          sort -k1,1 -k2,2n > {output.bg_neg}
+        bedGraphToBigWig {output.bg_neg} {input.chr_sizes} {output.bw_neg}
+        """
+
+rule cleavage_coverage:
+    input:
+        "data/bam/celltypes/{celltype_id}.bam"
+    output:
+        neg="data/coverage/celltypes/{celltype_id}.negative.txt.gz",
+        pos="data/coverage/celltypes/{celltype_id}.positive.txt.gz"
+    conda: "envs/bedtools.yaml"
+    shell:
+        """
+        bedtools genomecov -dz -5 -strand '-' -ibam {input} | gzip > {output.neg}
+        bedtools genomecov -dz -5 -strand '+' -ibam {input} | gzip > {output.pos}
+        """
+
+rule merge_coverage_celltype:
+    input:
+        cov="data/coverage/celltypes/{celltype_id}.{strand}.txt.gz"
+    output:
+        cov="data/coverage/celltypes/{celltype_id}.{strand}.e{epsilon,\d+}.txt.gz"
+    threads: 8
+    resources:
+        mem_mb=1000
+    conda: "envs/pandas.yaml"
+    script:
+        "scripts/merge_genomecov.py"
+
+rule filter_tpm:
+    input:
+        neg="data/coverage/celltypes/{celltype_id}.negative.e{epsilon}.txt.gz",
+        pos="data/coverage/celltypes/{celltype_id}.positive.e{epsilon}.txt.gz"
+    output:
+        neg="data/coverage/celltypes/{celltype_id}.negative.e{epsilon}.t{threshold}.txt.gz",
+        pos="data/coverage/celltypes/{celltype_id}.positive.e{epsilon}.t{threshold}.txt.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+"
+    conda: "envs/bedtools.yaml"
+    shell:
+        """
+        threshold=$(bgzip -cd {input} | awk '{{sum+=$3}}END{{print {wildcards.threshold}*sum/1000000}}')
+        echo "[INFO] {wildcards.threshold} TPM = ${{threshold}} reads" >&2
+        bgzip -cd {input.neg} |\\
+          awk -v OFS='\\t' -v threshold=${{threshold}} '$3 >= threshold' |\\
+          bgzip > {output.neg}
+        bgzip -cd {input.pos} |\\
+          awk -v OFS='\\t' -v threshold=${{threshold}} '$3 >= threshold' |\\
+          bgzip > {output.pos}
+        """
+
+rule sum_coverage:
+    input:
+        neg=expand("data/coverage/celltypes/{celltype_id}.negative.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique()),
+        pos=expand("data/coverage/celltypes/{celltype_id}.positive.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique())
+    output:
+        neg="data/coverage/utrome.celltypes.negative.e{epsilon}.t{threshold}.txt.gz",
+        pos="data/coverage/utrome.celltypes.positive.e{epsilon}.t{threshold}.txt.gz"
+    conda: "envs/bedtools.yaml"
+    threads: 4
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        gzip -cd {input.neg} |\\
+          datamash -s -g 1,2 sum 3 |\\
+          sort -k 1,1 -k 2,2n |\\
+          bgzip -@ {threads} > {output.neg}
+
+        gzip -cd {input.pos} |\\
+          datamash -s -g 1,2 sum 3 |\\
+          sort -k 1,1 -k 2,2n |\\
+          bgzip -@ {threads} > {output.pos}
+        """
+
+rule cov_to_bed_celltypes:
+    input:
+        neg=expand("data/coverage/celltypes/{celltype_id}.negative.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique()),
+        pos=expand("data/coverage/celltypes/{celltype_id}.positive.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique())
+    output:
+        bed="data/bed/celltypes/celltypes.e{epsilon}.t{threshold}.bed.gz",
+        tbi="data/bed/celltypes/celltypes.e{epsilon}.t{threshold}.bed.gz.tbi"
+    params:
+        tmpdir=config['tmpdir']
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+"
+    conda: "envs/bedtools.yaml"
+    threads: 1
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        tmpbed=$(mktemp -p {params.tmpdir})
+        for cov in {input.neg}; do
+          celltype=$(basename $cov | awk -v FS='.' '{{print $1}}')
+          bgzip -cd $cov |\\
+            awk -v OFS='\\t' -v ct="$celltype" '{{print $1, $2, $2, ct, $3, \"+\"}}' >> $tmpbed
+        done
+        for cov in {input.pos}; do
+          celltype=$(basename $cov | awk -v FS='.' '{{print $1}}')
+          bgzip -cd $cov |\\
+            awk -v OFS='\\t' -v ct="$celltype" '{{print $1, $2, $2, ct, $3, \"-\"}}' >> $tmpbed
+        done
+        sort -k1,1 -k2,2n $tmpbed | bgzip > {output.bed}
+        tabix -0 -p bed {output.bed}
+        rm -f $tmpbed
+        """
+
+rule merge_coverage_utrome:
+    input:
+        cov="data/coverage/utrome.celltypes.{strand}.e{epsilon}.t{threshold}.txt.gz"
+    output:
+        cov="data/coverage/utrome.{strand}.e{epsilon}.t{threshold}.txt.gz"
+    wildcard_constraints:
+        strand="(negative|positive)"
+    threads: 8
+    resources:
+        mem_mb=1000
+    conda: "envs/pandas.yaml"
+    script:
+        "scripts/merge_genomecov.py"
+
+rule cov_to_bed:
+    input:
+        neg="data/coverage/utrome.negative.e{epsilon}.t{threshold}.txt.gz",
+        pos="data/coverage/utrome.positive.e{epsilon}.t{threshold}.txt.gz"
+    output:
+        bed="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz",
+        tbi="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz.tbi"
+    params:
+        tmpdir=config['tmpdir']
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+"
+    conda: "envs/bedtools.yaml"
+    shell:
+        """
+        tmpbed=$(mktemp -p {params.tmpdir})
+        bgzip -cd {input.neg} |\\
+          awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > $tmpbed
+        bgzip -cd {input.pos} |\\
+          awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":-\", $3, \"-\"}}' >> $tmpbed
+        sort -k1,1 -k2,2n $tmpbed | bgzip > {output.bed}
+        tabix -0 -p bed {output.bed}
+        rm -f $tmpbed
+        """
+
+rule cleanUpdTSeq_classify:
+    input:
+        bed="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz"
+    output:
+        probs="data/cleavage-sites/utrome.classification.e{epsilon}.t{threshold}.tsv.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+"
+    conda: "envs/bioc_3_14.yaml"
+    resources:
+        mem_mb=4000
+    threads: 24
+    script:
+        "scripts/classify_cleavage_sites.R"
+
+rule cleanUpdTSeq_filter:
+    input:
+        bed="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz",
+        probs="data/cleavage-sites/utrome.classification.e{epsilon}.t{threshold}.tsv.gz",
+    output:
+        bed="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        likelihood="0.\d+"
+    conda: "envs/bioc_3_14.yaml"
+    script:
+        "scripts/filter_cleavage_sites.R"
+
+rule filter_validated_sites:
+    input:
+        bed_all="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.bed.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        validated="data/bed/cleavage-sites/utrome.validated.e{epsilon}.t{threshold}.gc{version}.bed.gz",
+        unvalidated="data/bed/cleavage-sites/utrome.unvalidated.e{epsilon}.t{threshold}.gc{version}.bed.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+"
+    params:
+        radius=config['radiusGENCODE']
+    conda: "envs/bioc_3_14.yaml"
+    script:
+        "scripts/filter_validated_sites.R"
+
+rule filter_supported_sites:
+    input:
+        unvalidated="data/bed/cleavage-sites/utrome.unvalidated.e{epsilon}.t{threshold}.gc{version}.bed.gz",
+        atlas="data/cleavage-sites/polyAsite.atlas.tsv.gz"
+    output:
+        supported="data/bed/cleavage-sites/utrome.supported.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.bed.gz",
+        unsupported="data/bed/cleavage-sites/utrome.unsupported.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.bed.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+"
+    params:
+        radius=config['radiusPAS']
+    conda: "envs/bioc_3_14.yaml"
+    script:
+        "scripts/filter_supported_sites.R"
+
+rule filter_likely_sites:
+    input:
+        unsupported="data/bed/cleavage-sites/utrome.unsupported.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.bed.gz",
+        passing="data/bed/cleavage-sites/utrome.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz"
+    output:
+        likely="data/bed/cleavage-sites/utrome.likely.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
+        unlikely="data/bed/cleavage-sites/utrome.unlikely.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+"
+    conda: "envs/bioc_3_14.yaml"
+    script:
+        "scripts/filter_likely_sites.R"
+
+rule export_cleavage_sites:
+    input:
+        supported="data/bed/cleavage-sites/utrome.supported.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.bed.gz",
+        likely="data/bed/cleavage-sites/utrome.likely.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        utr3="data/bed/cleavage-sites/utrome.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
+        extutr3="data/bed/cleavage-sites/utrome.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+"
+    params:
+        ext_utr3=config['extUTR3'],
+        ext_utr5=config['extUTR5']
+    conda: "envs/bioc_3_14.yaml"
+    script:
+        "scripts/export_cleavage_sites.R"
+
+rule augment_transcriptome_utr3:
+    input:
+        utr3="data/bed/cleavage-sites/utrome.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        gff="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
+        gtf="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gtf.gz"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood = "0.\d+"
+    conda: "envs/bioc_3_14.yaml"
+    resources:
+        mem_mb=16000
+    script: "scripts/augment_transcriptome_utr3.R"
+
+rule augment_transcriptome_extutr3:
+    input:
+        extutr3="data/bed/cleavage-sites/utrome.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.bed.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        gff="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
+        gtf="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gtf.gz"
+    wildcard_constraints:
+        epsilon = "\d+",
+        threshold = "\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood = "0.\d+"
+    params:
+        ext_utr3=config['extUTR3']
+    conda: "envs/bioc_3_14.yaml"
+    resources:
+        mem_mb=16000
+    script: "scripts/augment_transcriptome_extutr3.R"
+
+rule create_chunked_granges:
+    input:
+        utr3="data/gff/txs.utr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
+        extutr3="data/gff/txs.extutr3.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.gff3.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        positive="data/granges/augmented.positive.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds",
+        negative="data/granges/augmented.negative.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds",
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+"
+    conda: "envs/bioc_3_14.yaml"
+    resources:
+        mem_mb=16000
+    script: "scripts/create_chunked_granges.R"
+
+rule truncate_positive_strand:
+    input:
+        granges="data/granges/augmented.positive.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds"
+    output:
+        granges="data/granges/utrome.raw.positive.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+",
+        width="\d+"
+    conda: "envs/bioc_3_14.yaml"
+    threads: 24
+    resources:
+        mem_mb=3000
+    script: "scripts/truncate_positive_strand.R"
+
+rule truncate_negative_strand:
+    input:
+        granges="data/granges/augmented.negative.chunked.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.Rds"
+    output:
+        granges="data/granges/utrome.raw.negative.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+",
+        width="\d+"
+    conda: "envs/bioc_3_14.yaml"
+    threads: 24
+    resources:
+        mem_mb=3000
+    script: "scripts/truncate_negative_strand.R"
+
+rule export_unmerged_utrome:
+    input:
+        positive="data/granges/utrome.raw.positive.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds",
+        negative="data/granges/utrome.raw.negative.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds"
+    output:
+        gtf="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.gtf",
+        fa="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.fasta.gz"
+    wildcard_constraints:
+        epsilon="\d+",
+        threshold="\d+",
+        version="\d+",
+        tpm="\d+",
+        likelihood="0.\d+",
+        width="\d+"
+    conda: "envs/bioc_3_14.yaml"
+    threads: 24
+    resources:
+        mem_mb=2000
+    script: "scripts/export_unmerged_utrome.R"
+
+rule sort_utrome:
+    input:
+        gtf="data/gff/utrome.{settings}.gtf"
+    output:
+        gtf="data/gff/utrome.{settings}.gtf.gz",
+        idx="data/gff/utrome.{settings}.gtf.gz.tbi"
+    conda: "envs/bedtools.yaml"
+    threads: 4
+    resources:
+        mem_mb=6000
+    shell:
+        """
+        cat {input.gtf} |\\
+          awk '!( $0 ~ /^#/ )' |\\
+          sort --parallel={threads} -S4G -k1,1 -k4,4n |\\
+          bgzip -@ {threads} -c > {output.gtf}
+
+        tabix {output.gtf}
+        """
+
+rule kallisto_index:
+    input:
+        fa="data/gff/utrome.{settings}.fasta.gz"
+    output:
+        kdx="data/kdx/utrome.{settings}.kdx"
+    conda: "envs/kallisto.yaml"
+    resources:
+        mem_mb=16000
+    shell:
+        """
+        kallisto index -i {output.kdx} {input.fa}
+        """
+
+rule export_merge_table:
+    input:
+        gtf="data/gff/utrome.{settings}.gtf.gz"
+    output:
+        tsv="data/gff/utrome.{settings}.m{merge}.tsv"
+    params:
+        genome="mm10"
+    conda: "envs/bioc_3_14.yaml"
+    resources:
+        mem_mb=8000
+    script: "scripts/export_merge_table.R"
+
+rule export_intronic_sites:
+    input:
+        utrome="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.gtf.gz",
+        gencode="data/gff/gencode.v{version}.mRNA_ends_found.gff3.gz"
+    output:
+        tsv="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.ipa.tsv"
+    conda: "envs/bioc_3_14.yaml"
+    script: "scripts/export_intronic_sites.R"
+
+
+rule export_granges_txs:
+    input:
+        ipa="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.ipa.tsv",
+        gtf="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.gtf.gz"
+    output:
+        gr="data/granges/utrome_gr_txs.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.Rds"
+    conda: "envs/bioc_3_14.yaml"
+    script: "scripts/export_granges_txs.R"
+
+################################################################################
+## Reports
+################################################################################
 
 rule fastqc_raw:
     input:
@@ -105,831 +785,172 @@ rule fastqc_raw:
         "qc/raw/{srr}_{read}_fastqc.zip"
     params:
         adapters = config["adaptersFile"],
-        tmp_dir = config["tmp_dir"]
+        tmp_dir = config["tmpdir"]
     conda: "envs/mca.yaml"
     shell:
         """
         fastqc -a {params.adapters} -d {params.tmp_dir} -o qc/raw {input}
         """
 
-rule fastqc_clean:
+rule summarize_pear_results:
     input:
-        "data/fastq/trimmed/{srr}.{readtype}.clean.fastq.gz"
+        script="scripts/parse_pear.awk"
     output:
-        "qc/trimmed/{srr}.{readtype}.clean_fastqc.html",
-        "qc/trimmed/{srr}.{readtype}.clean_fastqc.zip"
-    params:
-        adapters = config["adaptersFile"],
-        tmp_dir = config["tmp_dir"]
-    conda: "envs/mca.yaml"
+        csv="qc/pear/pear_summary.csv"
     shell:
         """
-        fastqc -a {params.adapters} -d {params.tmp_dir} -o qc/trimmed {input}
+        echo 'sample,cts_total,cts_assembled,cts_unassembled,cts_discarded,pct_assembled,pct_unassembled,pct_discarded' > {output.csv}
+        for log in logs/*/pear_merge/*/*.out; do
+            awk -f {input.script} $log >> {output.csv}
+        done
         """
 
-rule pear_merge:
+rule summarize_umitools_results:
     input:
-        r1 = "data/fastq/raw/{srr}_1.fastq.gz",
-        r2 = "data/fastq/raw/{srr}_2.fastq.gz"
+        script="scripts/parse_umitools_extract.awk"
     output:
-        r12 = "data/fastq/assembled/{srr}.assembled.fastq.gz",
-        r1 = "data/fastq/unassembled/{srr}.unassembled_1.fastq.gz",
-        r2 = "data/fastq/unassembled/{srr}.unassembled_2.fastq.gz",
-        r0 = "data/fastq/discarded/{srr}.discarded.fastq.gz"
-    params:
-        tmp_dir = config["tmp_dir"] + "/pear",
-        total_mem = 32,
-        min_length = 54 + 21
-    conda: "envs/mca.yaml"
-    threads: 24
-    log:
-        "logs/pear/{srr}.log"
+        csv="qc/barcodes/umitools_summary.csv"
     shell:
         """
-        mkdir -p {params.tmp_dir}
-        pear -j {threads} -n {params.min_length} -p 0.0001 -f {input.r1} -r {input.r2} -o {params.tmp_dir}/{wildcards.srr} 2> {log}
-        pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.assembled.fastq > {output.r12}
-        pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.unassembled.forward.fastq > {output.r1}
-        pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.unassembled.reverse.fastq > {output.r2}
-        pigz -p {threads} -c {params.tmp_dir}/{wildcards.srr}.discarded.fastq > {output.r0}
-        rm {params.tmp_dir}/{wildcards.srr}.*.fastq
+        echo 'sample,total_in,total_out,raw_matched,raw_unmatched,excluded_bx,corrected_bx' > {output.csv}
+        for log in logs/*/umitools_extract_assembled/*/*.out; do
+            awk -f {input.script} $log >> {output.csv}
+        done
         """
 
-rule umitools_whitelist_raw:
+rule summarize_hisat_results:
     input:
-        "data/fastq/raw/{srr}_1.fastq.gz"
+        script="scripts/parse_hisat2.awk"
     output:
-        raw = "data/barcodes/{srr}.raw.whitelist.c20K.txt",
-        filtered = "data/barcodes/{srr}.raw.whitelist.umi500.txt"
-    params:
-        #bc_regex = config["barcodeRegex"],
-        cell_num = 20000,
-        prefix = lambda wcs: "qc/barcodes/%s.raw.20K" % wcs.srr
-    log:
-        "logs/umi_tools/{srr}.raw.whitelist.c20K.log"
-    resources:
-        mem = 16,
-        walltime = 24
-    conda: "envs/mca.yaml"
+        csv="qc/hisat2/hisat2_summary.csv"
     shell:
         """
-        umi_tools whitelist --set-cell-number={params.cell_num} --method=umis \\
-        --extract-method=regex --plot-prefix={params.prefix} \\
-        --bc-pattern='(?P<cell_1>.{{6}})(?P<discard_1>CGACTCACTACAGGG){{s<=1}}(?P<cell_2>.{{6}})(?P<discard_2>TCGGTGACACGATCG){{s<=1}}(?P<cell_3>.{{6}})(?P<umi_1>.{{6}})(T{{12}}){{s<=2}}.*' \\
-        --stdin={input} --stdout={output.raw} --log={log}
-        awk '$3 >= 500 {{ print $0 }}' {output.raw} > {output.filtered}
+        echo 'sample,cts_total,cts_unaligned,cts_unique,cts_multi' > {output.csv}
+        for log in qc/hisat2/*.log; do
+            awk -f {input.script} $log >> {output.csv}
+        done
         """
 
-rule umitools_extract_assembled:
+rule count_all_sites_celltypes:
     input:
-        bx = "data/barcodes/{srr}.raw.whitelist.umi500.txt",
-        fq = "data/fastq/assembled/{srr}.assembled.fastq.gz"
+        neg=expand("data/coverage/celltypes/{celltype_id}.negative.e{{epsilon}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique()),
+        pos=expand("data/coverage/celltypes/{celltype_id}.positive.e{{epsilon}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique())
     output:
-        temp("data/fastq/extracted/{srr}.assembled.bx.fastq.gz")
-    log:
-        "logs/umi_tools/{srr}.assembled.extract.log"
-    resources:
-        mem = 16,
-        walltime = 24
-    conda: "envs/mca.yaml"
+        csv="qc/coverage/celltypes_all_sites.e{epsilon}.csv"
+    conda: "envs/bedtools.yaml"
     shell:
         """
-        umi_tools extract --filter-cell-barcode --error-correct-cell \\
-        --extract-method=regex \\
-        --bc-pattern='(?P<cell_1>.{{6}})(?P<discard_1>CGACTCACTACAGGG){{s<=1}}(?P<cell_2>.{{6}})(?P<discard_2>TCGGTGACACGATCG){{s<=1}}(?P<cell_3>.{{6}})(?P<umi_1>.{{6}})(T{{12}}){{s<=2}}.*' \\
-        --whitelist={input.bx} --log={log} \\
-        --stdin={input.fq} --stdout={output}
+        echo 'celltype_id,strand,cts_total' > {output.csv}
+        for ct in {input.neg}; do
+          ct_id=$(basename $ct | cut -d. -f1);
+          nsites=$(bgzip -cd $ct | wc -l)
+          echo "${{ct_id}},+,${{nsites}}" >> {output.csv}
+        done
+        for ct in {input.pos}; do
+          ct_id=$(basename $ct | cut -d. -f1);
+          nsites=$(bgzip -cd $ct | wc -l)
+          echo "${{ct_id}},-,${{nsites}}" >> {output.csv}
+        done
         """
 
-rule umitools_extract_unassembled:
+rule count_passing_sites_celltypes:
     input:
-        bx = "data/barcodes/{srr}.raw.whitelist.umi500.txt",
-        r1 = "data/fastq/unassembled/{srr}.unassembled_1.fastq.gz",
-        r2 = "data/fastq/unassembled/{srr}.unassembled_2.fastq.gz"
+        neg=expand("data/coverage/celltypes/{celltype_id}.negative.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique()),
+        pos=expand("data/coverage/celltypes/{celltype_id}.positive.e{{epsilon}}.t{{threshold}}.txt.gz",
+                   celltype_id=celltype_sample_map.celltype_id.unique())
     output:
-        r1 = temp("data/fastq/extracted/{srr}.unassembled_1.bx.fastq.gz"),
-        r2 = temp("data/fastq/extracted/{srr}.unassembled_2.bx.fastq.gz")
-    log:
-        "logs/umi_tools/{srr}.unassembled.extract.log"
-    conda: "envs/mca.yaml"
-    resources:
-        mem = 16,
-        walltime = 24
+        csv="qc/coverage/celltypes_passing_sites.e{epsilon}.t{threshold}.csv"
+    conda: "envs/bedtools.yaml"
     shell:
         """
-        umi_tools extract --filter-cell-barcode --error-correct-cell \\
-        --extract-method=regex \\
-        --bc-pattern='(?P<cell_1>.{{6}})(?P<discard_1>CGACTCACTACAGGG){{s<=1}}(?P<cell_2>.{{6}})(?P<discard_2>TCGGTGACACGATCG){{s<=1}}(?P<cell_3>.{{6}})(?P<umi_1>.{{6}})(T{{12}}){{s<=2}}.*' \\
-        --whitelist={input.bx} --log={log} \\
-        --stdin={input.r1} --read2-in={input.r2} \\
-        --stdout={output.r1} --read2-out={output.r2}
+        echo 'celltype_id,strand,cts_total' > {output.csv}
+        for ct in {input.neg}; do
+          ct_id=$(basename $ct | cut -d. -f1);
+          nsites=$(bgzip -cd $ct | wc -l)
+          echo "${{ct_id}},+,${{nsites}}" >> {output.csv}
+        done
+        for ct in {input.pos}; do
+          ct_id=$(basename $ct | cut -d. -f1);
+          nsites=$(bgzip -cd $ct | wc -l)
+          echo "${{ct_id}},-,${{nsites}}" >> {output.csv}
+        done
         """
 
-rule cutadapt_polyT_SE:
+rule count_unmerged_sites_utrome:
     input:
-        "data/fastq/extracted/{srr}.assembled.bx.fastq.gz"
+        neg="data/coverage/utrome.celltypes.negative.e{epsilon}.t{threshold}.txt.gz",
+        pos="data/coverage/utrome.celltypes.positive.e{epsilon}.t{threshold}.txt.gz"
     output:
-        "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz"
-    params:
-        min_length = config["minReadLength"]
-    conda: "envs/mca.yaml"
-    threads: 8
+        csv="qc/coverage/utrome_unmerged_sites.e{epsilon}.t{threshold}.csv"
+    conda: "envs/bedtools.yaml"
     shell:
         """
-        cutadapt --cores={threads} --front='T{{100}}' \\
-        --minimum-length={params.min_length} --length-tag='length=' \\
-        --output={output} {input}
+        echo 'strand,cts_total' > {output.csv}
+        nsites=$(bgzip -cd {input.neg} | wc -l)
+        echo "+,${{nsites}}" >> {output.csv}
+        nsites=$(bgzip -cd {input.pos} | wc -l)
+        echo "-,${{nsites}}" >> {output.csv}
         """
 
-rule cutadapt_polyT_PE:
+rule count_merged_sites_utrome:
     input:
-        r1 = "data/fastq/extracted/{srr}.unassembled_1.bx.fastq.gz",
-        r2 = "data/fastq/extracted/{srr}.unassembled_2.bx.fastq.gz"
+        neg="data/coverage/utrome.negative.e{epsilon}.t{threshold}.txt.gz",
+        pos="data/coverage/utrome.positive.e{epsilon}.t{threshold}.txt.gz"
     output:
-        r1 = "data/fastq/trimmed/{srr}.unassembled_1.clean.fastq.gz",
-        r2 = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
-    params:
-        min_length = config["minReadLength"]
-    conda: "envs/mca.yaml"
-    threads: 8
+        csv="qc/coverage/utrome_merged_sites.e{epsilon}.t{threshold}.csv"
+    conda: "envs/bedtools.yaml"
     shell:
         """
-        cutadapt --cores={threads} --front='T{{100}}' -A='A{{100}}' \\
-        --minimum-length={params.min_length} --pair-filter=both --length-tag='length=' \\
-        --output={output.r1} --paired-output={output.r2} {input.r1} {input.r2}
+        echo 'strand,cts_total' > {output.csv}
+        nsites=$(bgzip -cd {input.neg} | wc -l)
+        echo "+,${{nsites}}" >> {output.csv}
+        nsites=$(bgzip -cd {input.pos} | wc -l)
+        echo "-,${{nsites}}" >> {output.csv}
         """
 
-rule read_distribution:
+rule tabulate_utrome_txs:
     input:
-        bam = "data/bam/{srr}.{readtype}.bam",
-        bed = config["gencodeBED"]
+        gtf="data/gff/utrome.{settings}.gtf.gz",
+        awk="scripts/tabulate_utrome_txs.awk"
     output:
-        "qc/aligned/{srr}.{readtype}.read_distribution.txt"
-    conda: "envs/rseqc.min.yaml"
+        csv="qc/gff/utrome.site_types.{settings}.csv"
     shell:
         """
-        read_distribution.py -i {input.bam} -r {input.bed} &> {output}
+        zcat -cd {input.gtf} |\\
+          awk -f {input.awk} > {output.csv}
         """
 
-rule read_dist_plot:
+rule tabulate_utrome_merges:
     input:
-        "qc/aligned/{srr}.{readtype}.read_distribution.txt"
+        tsv="data/gff/utrome.{settings}.m{merge}.tsv"
     output:
-        "output/read_distribution/{tissue}.{srr}.{readtype}.png"
-    params:
-        label = lambda wcs: '"Mouse Cell Atlas {tissue} Sample ({srr}, {readtype})"'.format(tissue = wcs.tissue, srr = wcs.srr, readtype = wcs.readtype)
+        csv_unmerge="qc/gff/utrome.utrs_per_gene.unmerged.{settings}.m{merge}.csv",
+        csv_merge="qc/gff/utrome.utrs_per_gene.merged.{settings}.m{merge}.csv"
     shell:
         """
-        ./scripts/read_dist_plot.R {params.label} {input} {output}
-        """
-
-rule hisat2_PE:
-    input:
-        r1 = "data/fastq/trimmed/{srr}.unassembled_1.clean.fastq.gz",
-        r2 = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz"
-    output:
-        bam = "data/bam/hisat2/{srr}.unassembled.bam",
-        bai = "data/bam/hisat2/{srr}.unassembled.bam.bai"
-    params:
-        sam = config["tmp_dir"] + "/{srr}.unassembled.sam",
-        tmp_dir = config["tmp_dir"],
-        idx = config['hisatIndex']
-    conda: "envs/mca.yaml"
-    threads: 16
-    log: "logs/hisat2/{srr}.unassembled.log"
-    shell:
-        """
-        hisat2 -p {threads} -x {params.idx} -1 {input.r1} -2 {input.r2} -S {params.sam} --new-summary --summary-file {log}
-        samtools sort -@ {threads} -m 6G -T {params.tmp_dir}/ -o {output.bam} {params.sam}
-        samtools index -@ {threads} {output.bam}
-        rm -f {params.sam}
-        """
-
-rule hisat2_SE:
-    input:
-        "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz"
-    output:
-        bam = "data/bam/hisat2/{srr}.assembled.bam",
-        bai = "data/bam/hisat2/{srr}.assembled.bam.bai"
-    params:
-        tmp_dir = config["tmp_dir"],
-        idx = config['hisatIndex'],
-        sam = config["tmp_dir"] + "/{srr}.assembled.sam"
-    conda: "envs/mca.yaml"
-    threads: 16
-    log: "logs/hisat2/{srr}.assembled.log"
-    shell:
-        """
-        hisat2 -p {threads} -x {params.idx} -U {input} -S {params.sam} --new-summary --summary-file {log}
-        samtools sort -@ {threads} -m 6G -T {params.tmp_dir}/ -o {output.bam} {params.sam}
-        samtools index -@ {threads} {output.bam}
-        rm -f {params.sam}
-        """
-
-rule read_dist_plot_adult:
-   input:
-       expand("qc/aligned/{srr}.{readtype}.read_distribution.txt", srr = adultSRRs, readtype = ['assembled', 'unassembled'])
-   output:
-       assembled="output/read_distribution/MouseCellAtlas.AdultTissues.assembled.png",
-       unassembled="output/read_distribution/MouseCellAtlas.AdultTissues.unassembled.png"
-   params:
-       metadataFile = config["metadataFile"],
-       rx_assembled = "'SRR\\d+.assembled.read_distribution.txt$'",
-       rx_unassembled = "'SRR\\d+.unassembled.read_distribution.txt$'"
-   shell:
-       """
-       ./scripts/read_dist_plot_all.R {params.metadataFile} qc/aligned {params.rx_assembled} {output.assembled}
-       ./scripts/read_dist_plot_all.R {params.metadataFile} qc/aligned {params.rx_unassembled} {output.unassembled}
-       """
-
-rule cleavage_coverage:
-    input:
-        "data/bam/hisat2/{srr}.assembled.bam"
-    output:
-        neg = "data/coverage/{srr}.assembled.negative.txt.gz",
-        pos = "data/coverage/{srr}.assembled.positive.txt.gz"
-    conda: "envs/mca.yaml"
-    shell:
-        """
-        bedtools genomecov -dz -5 -strand '-' -ibam {input} | gzip > {output.neg}
-        bedtools genomecov -dz -5 -strand '+' -ibam {input} | gzip > {output.pos}
-        """
-
-rule sum_cov_adult:
-    input:
-        neg = expand("data/coverage/{srr}.assembled.negative.txt.gz", srr=adultSRRs),
-        pos = expand("data/coverage/{srr}.assembled.positive.txt.gz", srr=adultSRRs)
-    output:
-        neg = "data/coverage/adult.assembled.negative.txt.gz",
-        pos = "data/coverage/adult.assembled.positive.txt.gz"
-    conda: "envs/mca.yaml"
-    threads: 4
-    shell:
-        """
-        gzip -cd {input.neg} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.neg}
-        gzip -cd {input.pos} | datamash -s -g 1,2 sum 3 | sort -k 1,1 -k 2,2n | gzip > {output.pos}
-        """
-
-rule peak_size:
-    input:
-        assembled="data/bam/hisat2/{srr}.assembled.bam",
-        unassembled="data/bam/hisat2/{srr}.unassembled.bam"
-    output:
-        "data/coverage/peaks/{gene}/{srr}.raw_counts.txt"
-    params:
-        region=lambda wcs: config['peakRange'][wcs.gene],
-        strand=lambda wcs: config['peakStrand'][wcs.gene],
-        tmp_dir=config['tmp_dir'] + "/peak_cov",
-        tmp1=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".assembled.txt",
-        tmp2=lambda wcs: config['tmp_dir'] + "/peak_cov/{srr}." + wcs.gene + ".unassembled.txt"
-    conda: "envs/mca.yaml"
-    shell:
-        """
-        mkdir -p {params.tmp_dir}
-        bedtools genomecov -dz -3 -strand '{params.strand}' -ibam <(samtools view -b {input.assembled} '{params.region}') > {params.tmp1}
-        bedtools genomecov -dz -3 -strand '{params.strand}' -ibam <(samtools view -b {input.unassembled} '{params.region}') > {params.tmp2}
-        cat {params.tmp1} {params.tmp2} | datamash -s -g 1,2 sum 3 | sort -k1,1 -k2,2n > {output}
-        rm -f {params.tmp1} {params.tmp2}
-        """
-
-# rule peak_size_Ncoa6:
-#     input:
-#         assembled="data/bam/hisat2/{srr}.assembled.bam",
-#         unassembled="data/bam/hisat2/{srr}.unassembled.bam"
-#     output:
-#         "data/coverage/peaks/Ncoa6/{srr}.raw_counts.txt"
-#     params:
-#         region="chr2:155390656-155391150",
-#         tmp_dir=config['tmp_dir'] + "/peak_cov",
-#         tmp1=config['tmp_dir'] + "/peak_cov/{srr}.Ncoa6.assembled.txt",
-#         tmp2=config['tmp_dir'] + "/peak_cov/{srr}.Ncoa6.unassembled.txt"
-#     shell:
-#         """
-#         mkdir -p {params.tmp_dir}
-#         bedtools genomecov -dz -3 -strand '+' -ibam <(samtools view -b {input.assembled} {params.region}) > {params.tmp1}
-#         bedtools genomecov -dz -3 -strand '+' -ibam <(samtools view -b {input.unassembled} {params.region}) > {params.tmp2}
-#         cat {params.tmp1} {params.tmp2} | datamash -s -g 1,2 sum 3 | sort -k1,1 -k2,2n > {output}
-#         rm -f {params.tmp1} {params.tmp2}
-#         """
-
-rule plot_peak_cdf:
-    input:
-        "data/coverage/peaks/{gene}/{srr}.raw_counts.txt"
-    output:
-        "qc/peak-width/{gene}/{srr}.cdf.png"
-    params:
-        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        startPos=lambda wcs: config['txEnd'][wcs.gene]
-    shell:
-        """
-        scripts/plot_peak_cdf.R {input} {params.startPos} {wildcards.gene} {params.batch} {output}
-        """
-
-
-rule merge_cov_adult:
-    input:
-        "data/coverage/adult.assembled.{strand}.txt.gz"
-    output:
-        "data/coverage/adult.assembled.{strand}.{epsilon,\d+}.txt.gz"
-    threads: 16
-    resources:
-        walltime=24
-    shell:
-        """
-        scripts/merge_genomecov.py -p {threads} -e {wildcards.epsilon} {input} {output}
-        """
-
-rule cov_to_bed:
-    input:
-        neg = "data/coverage/adult.assembled.negative.{epsilon}.txt.gz",
-        pos = "data/coverage/adult.assembled.positive.{epsilon}.txt.gz"
-    output:
-        gz = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz",
-        tbi = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz.tbi"
-    params:
-        raw = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed"
-    wildcard_constraints:
-        epsilon = "\d+",
-        threshold = "\d+"
-    conda: "envs/mca.yaml"
-    shell:
-        """
-        gzip -cd {input.neg} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":+\", $3, \"+\"}}' > {params.raw}
-        gzip -cd {input.pos} | awk -v OFS='\\t' '$3>={wildcards.threshold}{{print $1, $2, $2, $1 \":\" $2 \":-\", $3, \"-\"}}' >> {params.raw}
-        sort -k1,1 -k2,2n {params.raw} | bgzip > {output.gz}
-        tabix -0 -p bed {output.gz}
-        rm -f {params.raw}
-        """
-
-rule cleanUpdTSeq_adult:
-    input:
-        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz"
-    output:
-        res = "qc/cleavage-sites/adult.classified.e{epsilon}.t{threshold}.f{likelihood}.tsv.gz",
-        hist = "qc/cleavage-sites/adult.posteriors.e{epsilon}.t{threshold}.f{likelihood}.png",
-        bed = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz"
-    wildcard_constraints:
-        epsilon = "\d+",
-        threshold = "\d+",
-        likelihood = "0.\d+"
-    resources:
-        walltime=10,
-        mem=36  # most we observed was 34GB
-    shell:
-        """
-        scripts/classify_cleavage_sites.R {input} {wildcards.likelihood} {output.res} {output.hist}
-        """
-
-rule intersect_polyASite:
-    input:
-        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz"
-    output:
-        "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.pA{score}.bed.gz"
-    params:
-        pasFile=config["polyASiteBED"],
-        window=12
-    shell:
-        """
-        scripts/compare_polyASite.R {params.pasFile} {wildcards.score} {params.window} {input} {output}
-        """
-
-rule export_cleavage_sites:
-    input:
-        full = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.bed.gz",
-        clean = "data/bed/cleavage-sites/adult.cleavage.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        pas = config["polyASiteBED"],
-        annot = config["gencodeGFF"]
-    output:
-        "data/bed/cleavage-sites/adult.validated.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "data/bed/cleavage-sites/adult.supported.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "data/bed/cleavage-sites/adult.likely.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "data/bed/cleavage-sites/adult.unlikely.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "data/bed/cleavage-sites/adult.utr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "data/bed/cleavage-sites/adult.extutr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        "qc/cleavage-sites/adult.annotations.e{epsilon}.t{threshold}.f{likelihood}.png",
-        "qc/cleavage-sites/adult.site_scores.e{epsilon}.t{threshold}.f{likelihood}.png"
-    threads: 1
-    params:
-        prefix = "adult",
-        suffix = lambda wcs: "e%s.t%s.f%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood),
-        extUTR3 = 5000,
-        extUTR5 = 1000
-    shell:
-        """
-        scripts/export_cleavage_sites.R {threads} {input.full} {input.clean} {input.annot} {input.pas} {params.extUTR5} {params.extUTR3} {params.prefix} {params.suffix}
-        """
-
-rule augment_transcriptome:
-    input:
-        utr3 = "data/bed/cleavage-sites/adult.utr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        ext3 = "data/bed/cleavage-sites/adult.extutr3.e{epsilon}.t{threshold}.f{likelihood}.bed.gz",
-        annot = config["gencodeGFF"]
-    output:
-        "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
-        "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gtf",
-        "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
-        "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gtf"
-    wildcard_constraints:
-        epsilon = "\d+",
-        threshold = "\d+",
-        likelihood = "0.\d+"
-    threads: 24
-    resources:
-        mem = 8,
-        walltime = 24
-    params:
-        prefix = "adult",
-        suffix = lambda wcs: "e%s.t%s.f%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood),
-        extUTR3 = 5000
-    shell:
-        """
-        scripts/augment_transcriptome.R {threads} {input.utr3} {input.ext3} {input.annot} {params.extUTR3} {params.prefix} {params.suffix}
-        """
-
-rule export_utrome:
-    input:
-        utr3 = "data/gff/adult.txs.utr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
-        ext3 = "data/gff/adult.txs.extutr3.e{epsilon}.t{threshold}.f{likelihood}.gff3",
-        annot = config["gencodeSortedGFF"]
-    output:
-        gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
-        fa = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
-    wildcard_constraints:
-        epsilon = "\d+",
-        threshold = "\d+",
-        likelihood = "0.\d+",
-        width = "\d+"
-    threads: 4
-    params:
-        prefix = "adult",
-        suffix = lambda wcs: "e%s.t%s.f%s.w%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood, wcs.width)
-    shell:
-        """
-        scripts/export_utrome.R {threads} {input.utr3} {input.ext3} {input.annot} {wildcards.width} {params.prefix} {params.suffix}
-        """
-
-rule sort_utrome:
-    input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf"
-    output:
-        gtf = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz",
-        idx = "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz.tbi"
-    conda: "envs/mca.yaml"
-    threads: 4
-    resources:
-        mem = 6
-    shell:
-        """
-        cat {input} | awk '!( $0 ~ /^#/ )' | sort --parallel={threads} -S4G -k1,1 -k4,4n | bgzip -c > {output.gtf}
-        tabix {output.gtf}
-        """
-
-rule plot_utrome_stats:
-    input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
-    output:
-        "qc/utrome/adult.utrome.txsPerGene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.exonsPerTx.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.lengths.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.dists.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.distsByChr.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.sitesPerGene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.sitesPerGene.log.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.txsPerSite.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png",
-        "qc/utrome/adult.utrome.txsPerSite.log.e{epsilon}.t{threshold}.f{likelihood}.w{width}.png"
-    wildcard_constraints:
-        epsilon = "\d+",
-        threshold = "\d+",
-        likelihood = "0.\d+",
-        width = "\d+"
-    threads: 1
-    params:
-        prefix = "adult",
-        suffix = lambda wcs: "e%s.t%s.f%s.w%s" % (wcs.epsilon, wcs.threshold, wcs.likelihood, wcs.width)
-    shell:
-        """
-        scripts/plot_utrome_stats.R {threads} {input} {params.prefix} {params.suffix}
-        """
-
+        tail -n +2 {input.tsv} |\\
+          cut -f 3 | sort | uniq -c |\\
+          awk '{{ print $1 }}' | sort | uniq -c |\\
+          awk '{{ print $2 "," $1 }}' > {output.csv_unmerge}
         
-rule kallisto_index:
+        tail -n +2 {input.tsv} |\\
+          cut -f 2,3 | sort | uniq |\\
+          cut -f 2 | sort | uniq -c |\\
+          awk '{{ print $1 }}' | sort | uniq -c |\\
+          awk '{{ print $2 "," $1 }}' > {output.csv_merge}
+        """
+
+rule compute_merge_lengths:
     input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
+        gtf="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.gtf.gz",
+        tsv="data/gff/utrome.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.m{merge}.tsv"
     output:
-        "data/kallisto/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
-    params:
-        kallisto=config["kallistoBin"]
+        tsv="qc/gff/utrome.merged_lengths.e{epsilon}.t{threshold}.gc{version}.pas{tpm}.f{likelihood}.w{width}.m{merge}.tsv.gz"
+    threads: 12
     resources:
-        mem=8
-    shell:
-        """
-        {params.kallisto} index -i {output} {input}
-        """
-
-rule bam_mv_bxs:
-    input:
-        "data/bam/hisat2/{srr}.{readtype}.bam"
-    output:
-        bam = "data/bam/hisat2/{srr}.{readtype}.bxs.bam",
-        idx = "data/bam/hisat2/{srr}.{readtype}.bxs.bam.bai"
-    conda: "envs/mca.yaml"
-    shell:
-        """
-        samtools view -h {input} | awk '{ if($0 ~ "^@") {print $0} else { split($1, read_name, "_"); $1 = read_name[1]; print $0"\tCB:Z:"read_name[2]"\tRX:Z:"read_name[3]}}' | samtools view -b > {output.bam}
-        samtools index {output.bam}
-        """
-
-rule demux_kallisto_pseudo:
-    input:
-        fq = "data/fastq/trimmed/{srr}.{readtype}.clean.fastq.gz",
-        kdx = "data/kallisto/adult.utrome.e20.t100.f0.999.w300.kdx"
-    output:
-        "data/tcc/{srr}/{readtype}/matrix.cells",
-        "data/tcc/{srr}/{readtype}/matrix.ec",
-        "data/tcc/{srr}/{readtype}/matrix.tsv",
-        "data/tcc/{srr}/{readtype}/run_info.json"
-    params:
-        fqDir=config["tmp_dir"] + "/{srr}/{readtype}",
-        prefix=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        outDir="data/tcc/{srr}/{readtype}",
-        kallisto=config["kallistoBin"]
-    shell:
-        """
-        rm -rf {params.fqDir}
-        scripts/demux_fastq.sh {input.fq} {params.fqDir} {params.prefix}
-        {params.kallisto} pseudo --umi -i {input.kdx} -o {params.outDir} -b {params.fqDir}/{params.prefix}.dat
-        rm -rf {params.fqDir}
-        """
-
-rule demux_kallisto_quant:
-    input:
-        fq_assembled = "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz",
-        fq_unassembled = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
-        kdx = "data/kallisto/adult.utrome.e3.t200.f0.999.w{width}.kdx",
-        gtf = "data/gff/adult.utrome.e3.t200.f0.999.w{width}.gtf"
-    output:
-        flag="data/kallisto/utrome.w{width}/{srr}/.snakemake.demux_kallisto_quant.flag"
-    threads: 8
-    resources:
-        mem=12,
-        walltime=48
-    params:
-        fqDir = config["tmp_dir"] + "/fastq/{srr}",
-        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        outDir = "data/kallisto/utrome.w{width}/{srr}",
-        chroms = config["chromeSizes"],
-        bufferSize = "64G",
-        kallisto=config["kallistoBin"]
-    shell:
-        """
-        rm -rf {params.fqDir}
-        scripts/demux_fastq_ordered.sh {input.fq_assembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
-        scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
-        while read -r cell;
-        do
-          {params.kallisto} quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
-            --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
-            -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
-        done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
-        rm -rf {params.fqDir}
-        touch {output.flag}
-        """
-
-rule demux_kallisto_quant_gencode:
-    input:
-        fq_assembled = "data/fastq/trimmed/{srr}.assembled.clean.fastq.gz",
-        fq_unassembled = "data/fastq/trimmed/{srr}.unassembled_2.clean.fastq.gz",
-        kdx = config["gencodeKallistoIndex"],
-        gtf = config["gencodeGTF"]
-    output:
-        flag="data/kallisto/gencode/{srr}/.snakemake.demux_kallisto_quant_gencode.flag"
-    threads: 8
-    resources:
-        mem = 12,
-        walltime = 72
-    params:
-        fqDir = config["tmp_dir"] + "/fastq/gencode/{srr}",
-        prefix = lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        outDir = "data/kallisto/gencode/{srr}",
-        chroms = config["chromeSizes"],
-        bufferSize = "64G",
-        kallisto=config["kallistoBin"]
-    shell:
-        """
-        rm -rf {params.fqDir}
-        scripts/demux_fastq_ordered.sh {input.fq_assembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
-        scripts/demux_fastq_ordered.sh {input.fq_unassembled} {params.fqDir} {params.prefix} {threads} {params.bufferSize}
-        while read -r cell;
-        do
-          {params.kallisto} quant -i {input.kdx} --genomebam -g {input.gtf} -c {params.chroms} \
-            --bias --single --single-overhang --rf-stranded -l200 -s50 -t {threads} \
-            -o {params.outDir}/\"$cell\" {params.fqDir}/\"$cell\".fastq;
-        done < <(cut -f1 {params.fqDir}/{params.prefix}.dat)
-        rm -rf {params.fqDir}
-        touch {output.flag}
-        """
-
-rule gtf_tx2gene:
-    input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
-    output:
-        "data/gff/adult.utrome.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
-    shell:
-        """
-        gzip -cd {input} | awk -f scripts/gtf_tx2gene.awk > {output}
-        """
-
-rule ercc_tx2gene:
-    input:
-        utrome="data/gff/adult.utrome.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv",
-        ercc=config['erccGTF']
-    output:
-        "data/gff/adult.utrome.ercc.tx2gene.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
-    shell:
-        """
-        cp {input.utrome} {output}
-        awk -v OFS='\t' '{{print $1,$1,$1,$1}}' {input.ercc} >> {output}
-        """
-
-rule gtf_txid2txname:
-    input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf.gz"
-    output:
-        "data/gff/adult.utrome.txid2txname.e{epsilon}.t{threshold}.f{likelihood}.w{width}.tsv"
-    shell:
-        """
-        gzip -cd {input} | awk -f scripts/gtf_txid2txname.awk > {output}
-        """
-
-## The strong dependence of memory on cell count demanded using a dynamic allocation.  The linear relationship was
-## determined by running a selection of libraries. Although walltime also scaled linearly, the maximum walltime
-## still remained below 4 hours.
-rule kallisto_to_sce:
-    input:
-        flag="data/kallisto/utrome.w{width}/{srr}/.snakemake.demux_kallisto_quant.flag",
-        tx2gene="data/gff/adult.utrome.tx2gene.e3.t200.f0.999.w{width}.tsv"
-    output:
-        txs="data/kallisto/utrome.w{width}/sce/{srr}.txs.rds",
-        genes="data/kallisto/utrome.w{width}/sce/{srr}.genes.rds"
-    params:
-        inputDir="data/kallisto/utrome.w{width}/{srr}"
-    resources:
-        mem=lambda wcs: 8 + round(0.020*len(next(os.walk('data/kallisto/utrome.w%s/%s' % (wcs.width, wcs.srr)))[1]))
-    shell:
-        """
-        scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
-        """
-
-rule kallisto_to_sce_gencode:
-    input:
-        flag="data/kallisto/gencode/{srr}/.snakemake.demux_kallisto_quant_gencode.flag",
-        tx2gene=config['gencodeTx2Gene']
-    output:
-        txs="data/kallisto/gencode/sce/{srr}.txs.rds",
-        genes="data/kallisto/gencode/sce/{srr}.genes.rds"
-    params:
-        inputDir=lambda wcs: "data/kallisto/gencode/{srr}"
-    resources:
-        mem=lambda wcs: 8 + round(0.030*len(next(os.walk('data/kallisto/gencode/%s' % wcs.srr))[1]))
-    shell:
-        """
-        scripts/kallistoToSCE.R {params.inputDir} {input.tx2gene} {output.txs} {output.genes}
-        """
-
-rule plot_saturation:
-    input:
-        "data/kallisto/utrome.w{width}/sce/{srr}.{level}.rds"
-    output:
-        base="qc/saturation/utrome.w{width}/{srr}.{level}.png",
-        celltype="qc/saturation/utrome.w{width}/{srr}.{level}.cellTypes.png",
-        labeled="qc/saturation/utrome.w{width}/{srr}.{level}.labeledOnly.png"
-    params:
-        label=lambda wcs: "'Gene Counts'" if wcs.level == 'genes' else "'Transcript Counts'",
-        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-        annot=config["annotationFile"]
-    resources:
-        mem=64
-    wildcard_constraints:
-        level = "(genes|txs)"
-    version: 1.0
-    shell:
-        """
-        scripts/plot_saturation.R {input} {params.annot} {params.label} {params.batch} {output.base}
-        """
-
-rule plot_genes_utrome_vs_gencode:
-    input:
-        utrome="data/kallisto/utrome.w{width}/sce/{srr}.genes.rds",
-        gencode="data/kallisto/gencode/sce/{srr}.genes.rds",
-        annot=config["annotationFile"]
-    output:
-        flag="qc/gene-counts/utrome.w{width}/.{srr}.utrome.gencode.flag"
-    params:
-        base="qc/gene-counts/utrome.w{width}",
-        batch=lambda wcs: metadata.loc[metadata["Run"] == wcs.srr, "Batch"].values[0],
-    resources:
-        mem=64
-    version: 1.0
-    shell:
-        """
-        mkdir -p {params.base}/{params.batch}
-        scripts/plot_genes_utrome_vs_gencode.R {input.utrome} {input.gencode} {input.annot} {params.batch} {params.base}/{params.batch}/{params.batch}.compare.png
-        touch {output.flag}
-        """
-
-rule merge_overlapping_utrs:
-    input:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf"
-    output:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv"
-    params:
-        mergeDist=200
-    shell:
-        """
-        scripts/merge_overlapping_utrs.R {input} {params.mergeDist} {output}
-        """
-
-rule merge_overlapping_utrs_ercc:
-    input:
-        utrome="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv",
-        ercc=config['erccGTF']
-    output:
-        "data/gff/adult.utrome.ercc.e{epsilon}.t{threshold}.f{likelihood}.w{width}.merge.tsv"
-    shell:
-        """
-        cp {input.utrome} {output}
-        awk -v OFS='\t' '{{print $1,$1,$1}}' {input.ercc} >> {output}        
-        """
-
-rule intersect_utrome_txs:
-    input:
-        gtf="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.gtf",
-        awk="scripts/bedtools_intersect_txids.awk"
-    output:
-        "data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.overlaps.tsv"
-    conda: "envs/mca.yaml"
-    shell:
-        """
-        bedtools intersect -a <(awk '$3~/transcript/' {input.gtf}) -b <(awk '$3~/transcript/' {input.gtf}) -wa -wb | awk -f {input.awk} > {output}
-        """
-
-rule kallisto_index_ercc:
-    input:
-        ercc=config['erccFASTA'],
-        utrome="data/gff/adult.utrome.e{epsilon}.t{threshold}.f{likelihood}.w{width}.fasta"
-    output:
-        "data/kallisto/adult.utrome.ercc.e{epsilon}.t{threshold}.f{likelihood}.w{width}.kdx"
-    params:
-        tmpDir=config['tmp_dir'],
-        kallisto=config['kallistoBin']
-    resources:
-        mem=2
-    shell:
-        """
-        TMP_FASTA={params.tmpDir}/ercc.$(basename {input.utrome})
-        cat {input.utrome} {input.ercc} > $TMP_FASTA
-        {params.kallisto} index -i {output} $TMP_FASTA
-        rm -rf $TMP_FASTA
-        """
-
-rule dump_rlibs:
-    output: "envs/rlibs.html"
-    script: "scripts/dump_rlibs.Rmd"
-
-rule summarize_polyasite:
-    input:
-        pas=config['polyASiteBED'],
-        gencode=config['gencodeSortedGFF']
-    output:
-        "output/polyASite/summary.html"
-    params:
-        genome='mm10',
-        extUpstream="1000",
-        extDownstream="5000"
-    script:
-        "scripts/summarize_polyasite.Rmd"
-
-rule hisat2_PE_raw:
-    input:
-        r1 = "data/fastq/raw/{srr}_1.fastq.gz",
-        r2 = "data/fastq/raw/{srr}_2.fastq.gz"
-    output:
-        bam = "data/bam/hisat2/{srr}.raw.bam",
-        bai = "data/bam/hisat2/{srr}.raw.bam.bai"
-    params:
-        sam = config["tmp_dir"] + "/{srr}.raw.sam",
-        tmp_dir = config["tmp_dir"],
-        idx = config['hisatIndex']
-    conda: "envs/mca.yaml"
-    log: "logs/hisat2/{srr}.raw.log"
-    threads: 20
-    resources:
-        mem=4
-    shell:
-        """
-        mkdir -p {params.tmp_dir}
-        hisat2 -p {threads} -x {params.idx} -1 {input.r1} -2 {input.r2} -S {params.sam} --new-summary --summary-file {log}
-        samtools sort -@ {threads} -m 3G -T {params.tmp_dir}/ -o {output.bam} {params.sam}
-        samtools index -@ {threads} {output.bam}
-        rm -f {params.sam}
-        """
+        mem_mb=2000
+    conda: "envs/bioc_3_14.yaml"
+    script: "scripts/compute_merge_lengths.R"

@@ -3,52 +3,84 @@
 library(BSgenome.Mmusculus.UCSC.mm10)
 library(cleanUpdTSeq)
 library(rtracklayer)
-library(ggplot2)
-library(stringr)
+library(magrittr)
+library(BiocParallel)
 
-## bypass X11 rendering 
-options(bitmapType = 'cairo')
+################################################################################
+                                        # Fake Arguments
+################################################################################
 
-args = commandArgs(trailingOnly=TRUE)
-
-if (length(args) != 4) {
-    stop("Incorrect number of arguments!\nUsage:\n> classify_cleavage_sites.R <inFile> <likelihood> <resultsFile> <plotFile>\n")
+if (interactive()) {
+    Snakemake <- setClass("Snakemake", slots=c(input='list', output='list', threads='numeric'))
+    snakemake <- Snakemake(
+        input=list(bed="data/bed/cleavage-sites/utrome.cleavage.e3.t200.bed.gz"),
+        output=list(probs="data/bed/cleavage-sites/utrome.classification.e3.t200.tsv.gz"),
+        threads=3
+        )
 }
 
-arg.inFile <- args[1]
-arg.likelihood <- args[2]
-arg.resultsFile <- args[3]
-arg.plotFile <- args[4]
+################################################################################
+                                        # Load Data
+################################################################################
 
-formatString <- str_replace(arg.inFile, "bed.gz$", "f%s.bed.gz")
-
-peaks.gr <- import(arg.inFile, genome='mm10')
+gr_peaks <- import(snakemake@input$bed) %>%
+    `seqlevelsStyle<-`("UCSC") %>%
+    keepStandardChromosomes(pruning.mode="coarse")
+seqlevels(gr_peaks) <- seqlevels(BSgenome.Mmusculus.UCSC.mm10)
+seqinfo(gr_peaks) <- seqinfo(BSgenome.Mmusculus.UCSC.mm10)
 
 ## Need row names or else cleanUpdTSeq fails
-names(peaks.gr) <- elementMetadata(peaks.gr)$name
+names(gr_peaks) <- elementMetadata(gr_peaks)$name
 
-## Having issue with chr4_GL456350_random, so just leave out for now
-peaks.gr <- keepStandardChromosomes(peaks.gr, pruning.mode="coarse")
+################################################################################
+                                        # Filter Edge Cases
+################################################################################
+#' Peaks too close to the telomeres are not able to extract features needed to
+#' run the cleanUpdTSeq procedure.
 
-peaks.features <- buildFeatureVector(peaks.gr, BSgenomeName=Mmusculus, sampleType='unknown',
-                                     upstream=40, downstream=30, wordSize=6, method="NaiveBayes",
-                                     alphabet=c("ACGT"), replaceNAdistance=30, ZeroBasedIndex=0,
-                                     fetchSeq=TRUE)
+idx_edge_peaks <- gr_peaks %>%
+    { start(.) < 40 |
+          end(.) > (seqlengths(.)[as.character(seqnames(.))] - 40) } %>%
+    set_names(names(gr_peaks)) %>%
+    which
 
-## load default classifier
-data(classifier)
+## precreate NA entries to be appended to results
+res_na <- data.frame(peak_name=names(idx_edge_peaks),
+                     prob_fake_pA=NA,
+                     prob_true_pA=NA,
+                     pred_class=NA)
 
-res <- predictTestSet(testSet.NaiveBayes=peaks.features, outputFile=NULL,
-                      classifier=classifier, assignmentCutoff=0.5)
+print("The following peaks could not be classified:")
+print(gr_peaks[idx_edge_peaks])
 
-passing <- res[res$`prob True` > as.numeric(arg.likelihood), 'PeakName']
-gr.filtered <- peaks.gr[peaks.gr$name %in% passing, ]
-export.bed(object=gr.filtered, con=sprintf(formatString, arg.likelihood))
+################################################################################
+                                        # Classify Peaks
+################################################################################
 
-gz.out <- gzfile(arg.resultsFile, "w")
-write.table(res, gz.out, sep='\t', row.names=FALSE, quote=FALSE)
+classify_peaks <- function (gr) {
+    vec_features <- buildFeatureVector(gr, genome=Mmusculus, sampleType='unknown',
+                                       upstream=40L, downstream=30L, wordSize=6L, method="NaiveBayes",
+                                       alphabet=c("ACGT"), replaceNAdistance=30L, fetchSeq=TRUE)
 
-g <- ggplot(data=res, aes(x=`prob True`)) + geom_histogram() +
-    labs(title="Posterior Probabilities for True Poly-A Cleavage Site",
-         x="Posterior Probability", y="Genomic Sites")
-ggsave(arg.plotFile, g)
+    ## load default classifier
+    data(classifier)
+
+    predictTestSet(testSet.NaiveBayes=vec_features, outputFile=NULL,
+                   classifier=classifier, assignmentCutoff=0.5)
+}
+
+res <- gr_peaks[-idx_edge_peaks] %>%
+    ## split
+    { split(., ceiling(seq_along(.)/1000)) } %>%
+
+    ## apply
+    bplapply(classify_peaks, BPPARAM=MulticoreParam(snakemake@threads)) %>%
+
+    ## combine
+    do.call(what=rbind) %>%
+
+    ## include NAs
+    rbind(res_na)
+
+file_out <- gzfile(snakemake@output$probs, "w")
+write.table(res, file_out, sep='\t', row.names=FALSE, quote=FALSE)
