@@ -4,23 +4,34 @@ This reposistory hosts a Snakemake pipeline used to call 3' UTR cleavage sites *
 Please see [our accompanying *bioRxiv* manuscript](https://doi.org/10.1101/2021.11.22.469635).
 
 ## Requirements
-The original pipeline was run with:
+The original pipeline was run with 
 
-- Snakemake 5.10
-- kallisto 0.44.0
+- Snakemake 6.8
+- Conda 4.11.0
+- Mamba 0.21.2
 
-Note that on LSF system, we additionally used the `scripts/snakemake_bsub.py` to manage cluster scaling. Rule resources may need to be adjusted for other systems.
+and assumes use of `--use-conda` to source all other software.
+
+Rule `resources:` values are compatible with [Snakemake profiles](https://github.com/Snakemake-Profiles), which we recommend using. The included `lsf.yaml` provides some adjustments to default resource allocations specific to our cluster, mostly providing for jobs with longer run times.
 
 ## Running
-After cloning this repository, a kallisto index for a UTRome can be generated with:
+After cloning this repository, all outputs for the UTRome can be generated with
 
 ```bash
-snakemake data/kallisto/adult.utrome.e3.t200.f0.9999.w500.kdx
+snakemake --use-conda
 ```
 
-Additional parameters are encoded in the filename:
+Parameters are adjustable in the `config.yaml`:
 
  - **epsilon (e):** distance for initial merging of cleavage sites
- - **threshold (t):** minimum number of supporting reads
+ - **threshold (t):** minimum TPM for cutoff (per cell type)
+ - **gencodeVersion (gc):** version of GENCODE to use (default 25)
  - **non-internal priming likelihood (f):** minimum posterior likelihood for not being an internal priming site
  - **truncation width (w):** maximum transcript distance to cleavage site
+ - **mergeDistance (m):** distance within which to merge isoforms when quantifying in scUTRquant (kallisto)
+
+Alternatively, one can generate a specific file directly, such as a kallisto index with a direct command:
+
+```bash
+snakemake --use-conda data/kdx/utrome.e30.t5.gc25.pas3.f0.9999.w500.kdx
+```
