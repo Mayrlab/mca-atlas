@@ -1,0 +1,15 @@
+__default__:
+  - "-W 3:59"
+  - "-R fscratch"
+
+download_fastq:
+  - "-W 23:59"
+
+umitools_whitelist_raw:
+  - "-W 23:59"
+
+merge_coverage:
+  - "-W 23:59"
+
+umitools_extract_assembled:
+  - "-W 23:59"

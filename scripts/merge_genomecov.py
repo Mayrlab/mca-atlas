@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import pandas as pd
+import numpy as np
 from multiprocessing import Pool
 from functools import partial
-import argparse
 
 
 # FUNCTIONS
@@ -29,23 +29,15 @@ def merge_to_mode(df, epsilon):
     return df
 
 
-# PARSE ARGUMENTS
-
-parser = argparse.ArgumentParser(description="Merge neighboring read counts within an interval.")
-parser.add_argument('-e', '--epsilon', type=int, default=12,
-                    help="Number of nucleotides to search upstream and downstream to merge with.")
-parser.add_argument('-p', '--processes', type=int, default=1, help="Number of cores to use.")
-parser.add_argument('inFile')
-parser.add_argument('outFile')
-
-args = parser.parse_args()
-
-
 # IMPORT FILE
-counts = pd.read_table(args.inFile, header=None, names=['seqname', 'position', 'reads'])
+counts = pd.read_table(snakemake.input.cov, header=None,
+                       names=['seqname', 'position', 'reads'],
+                       dtype={'seqname': str, 'position': np.int32, 'reads': np.int32})
 print("Imported %d genomic locations" % len(counts))
 
-merged_counts = applyParallel(counts.groupby('seqname'), partial(merge_to_mode, epsilon=args.epsilon), args.processes)
+merged_counts = applyParallel(counts.groupby('seqname'),
+                              partial(merge_to_mode, epsilon=int(snakemake.wildcards.epsilon)),
+                              int(snakemake.threads))
 print("Exporting %d genomic locations" % len(merged_counts))
 
-merged_counts.to_csv(args.outFile, sep='\t', header=False, index=False, compression='gzip')
+merged_counts.to_csv(snakemake.output.cov, sep='\t', header=False, index=False, compression='gzip')

@@ -1,98 +1,40 @@
-tmp_dir:
-  "/fscratch/fanslerm"
+tmpdir: "/fscratch/fanslerm"
 
-annotationFile:
-  "metadata/cell-ann.csv.gz"
+metadataFile: "metadata/mca1_1.sample_srr.csv"
+annotsFile: "metadata/mca1_1.cell_annot.csv.gz"
+celltypesSamplesFile: "metadata/mca1_1.celltype_sample.csv"
 
-sampleBatchFile:
-  "metadata/sample_batch.txt"
-
-metadataFile:
-  "metadata/SRP126776.run_table.tsv"
-
-gencodeGFF:
-  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
-
-gencodeSortedGFF:
-  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gff3.gz"
-
-gencodeGTF:
-  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.gtf.gz"
-
-gencodeBED:
-  "/data/mayrc/db/mm10/gencode.vM21.annotation.mRNA_ends_found.bed"
-
-gencodeKallistoIndex:
-  "/data/mayrc/db/mm10/gencode.vM21.transcripts.kdx"
-
-gencodeTx2Gene:
-  "/data/mayrc/db/mm10/gencode.vM21.tx2gene.tsv"
-
-erccFASTA:
-  "/data/mayrc/db/ercc92/ERCC92.fa"
-
-erccGTF:
-  "/data/mayrc/db/ercc92/ERCC92.gtf"
-  
-chromeSizes:
-  "/data/mayrc/db/mm10/mm10.chrom.sizes"
-  
-polyASiteBED:
-  "/data/mayrc/db/mm10/polyASite.clusters.mm10.bed.gz"
-  
-ascpKeyFile:
-  "~/.aspera/connect/etc/asperaweb_id_dsa.openssh"
-
-adaptersFile:
-  "microwell_seq_adapters.txt"
-
-immuneSRRs:
-  - SRR6954580
-  - SRR6954579
-  - SRR6954575
-  - SRR6954568
-  - SRR6954567
-  - SRR6954566
-  - SRR6954565
-  - SRR6954564
-  - SRR6954563
-  - SRR6954509
-  - SRR6954508
-  - SRR6954507
-  - SRR6954506
-  - SRR6954505
-  - SRR6954504
-  - SRR6954503
-
-barcodeRegex:
-  '(?P<cell_1>.{6})(?P<discard_1>CGACTCACTACAGGG){s<=1}(?P<cell_2>.{6})(?P<discard_2>TCGGTGACACGATCG){s<=1}(?P<cell_3>.{6})(?P<umi_1>.{6})(?P<discard_3>T{12}){s<=2}.*'
+adaptersFile: "metadata/microwell_seq_adapters.txt"
+barcodeRegex: '(?P<cell_1>.{6})(?P<discard_1>CGACTCACTACAGGG){s<=1}(?P<cell_2>.{6})(?P<discard_2>TCGGTGACACGATCG){s<=1}(?P<cell_3>.{6})(?P<umi_1>.{6})(?P<discard_3>T{12}){s<=2}.*'
 
 minReadLength: 21
 
-hisatIndex: "/data/mayrc/db/mm10/hisat2_mm10_genome"
+hisatIndex: "/data/mayrc/db/mm10/grcm38_snp_tran/genome_snp_tran"
+chromSizes: "metadata/grcm38.chrom.sizes"
 
-peakRange:
-  Apoe:   "chr7:19696236-19697103"
-  Clptm1: "chr7:19633229-19633962"
-  Ncoa6:  "chr2:155390656-155391150"
-  Abca1:  "chr4:53030777-53031777"
-  Rnps1:  "chr17:24424900-24425900"
-  Lyrm5:  "chr6:145215835-145216548"
+radiusGENCODE: 20
+radiusPAS: 20
 
-peakStrand:
-  Apoe:   "+"
-  Clptm1: "+"
-  Ncoa6:  "+"
-  Abca1:  "+"
-  Rnps1:  "-"
-  Lyrm5:  "-"
+extUTR3: 5000
+extUTR5: 1000
 
-txEnd:
-  Apoe:    19696236
-  Clptm1:  19633229
-  Ncoa6:  155390656
-  Abca1:   53030777
-  Rnps1:   24425900
-  Lyrm5:  145216548
+epsilon:
+  - 30
 
-kallistoBin: "/data/mayrc/software/kallisto_linux-v0.44.0/kallisto"
+threshold:
+  - 5
+
+gencodeVersion:
+  - 25
+
+polyASiteTPM:
+  - 3
+
+minLikelihood:
+  - 0.9999
+
+width:
+  - 500
+
+mergeDistance:
+  - 200

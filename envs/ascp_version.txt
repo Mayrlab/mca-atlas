@@ -1,6 +1,0 @@
-Aspera Connect version 3.7.2.141527
-ascp version 3.7.2.137926
-Operating System: Linux
-FIPS 140-2-validated crypto ready to configure
-AES-NI Supported
-License max rate=(unlimited), account no.=1, license no.=1
