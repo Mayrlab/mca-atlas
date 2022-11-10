@@ -15,7 +15,10 @@ and assumes use of `--use-conda` to source all other software.
 Rule `resources:` values are compatible with [Snakemake profiles](https://github.com/Snakemake-Profiles), which we recommend using. The included `lsf.yaml` provides some adjustments to default resource allocations specific to our cluster, mostly providing for jobs with longer run times.
 
 ## Running
-After cloning this repository, all outputs for the UTRome can be generated with
+
+> ⚠️ This is not trivial pipeline! If you require scUTRquant (kallisto) indices with specific settings, please [file an Issue](https://github.com/Mayrlab/mca-utrome/issues) and we may be able to help generating this. For example, we may be able to provide intermediate files to "bootstrap" the pipeline and avoid downloading and aligning the raw data.
+
+After cloning this repository and adjusting the `config.yaml` to point at a local HISAT index (`hisatIndex`), all outputs for the UTRome can be generated with
 
 ```bash
 snakemake --use-conda
@@ -26,6 +29,7 @@ Parameters are adjustable in the `config.yaml`:
  - **epsilon (e):** distance for initial merging of cleavage sites
  - **threshold (t):** minimum TPM for cutoff (per cell type)
  - **gencodeVersion (gc):** version of GENCODE to use (default 25)
+ - **polyASiteTPM (pas):** minimum TPM for polyASite database entries
  - **non-internal priming likelihood (f):** minimum posterior likelihood for not being an internal priming site
  - **truncation width (w):** maximum transcript distance to cleavage site
  - **mergeDistance (m):** distance within which to merge isoforms when quantifying in scUTRquant (kallisto)
