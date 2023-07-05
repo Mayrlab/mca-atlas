@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/135358784.svg)](https://zenodo.org/badge/latestdoi/135358784)
+
 ## 3' UTR cleavage site identification from the Mouse Cell Atlas
 This reposistory hosts a Snakemake pipeline used to call 3' UTR cleavage sites *de novo* from [the Mouse Cell Atlas dataset](http://bis.zju.edu.cn/MCA/). The final output of the pipeline is the Mouse UTRome used in [the scUTRquant pipeline](https://github.com/Mayrlab/scUTRquant) for quantifying 3' UTR isoforms from scRNA-seq data.
 
